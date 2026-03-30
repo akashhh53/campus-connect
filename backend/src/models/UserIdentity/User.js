@@ -1,4 +1,5 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
+
 
 /* =========================
    USER SCHEMA
@@ -23,12 +24,13 @@ const userSchema = new mongoose.Schema(
     },
 
     phone: {
-      type: String,
-      unique: true,
-      sparse: true,
-      match: [/^[6-9]\d{9}$/, "Invalid phone number"],
-      index: true,
-    },
+  type: String,
+  unique: true,
+  sparse: true,
+  trim: true,
+  index: true,
+},
+
 
     password: {
       type: String,
@@ -108,6 +110,12 @@ const userSchema = new mongoose.Schema(
     otpAttempts: { type: Number, default: 0 },
 
     /* =========================
+   PASSWORD RESET
+========================= */
+resetPasswordToken: { type: String, select: false },
+resetPasswordExpire: Date,
+
+    /* =========================
        REFRESH TOKENS
     ========================= */
     refreshTokens: [
@@ -175,14 +183,12 @@ userSchema.virtual("age").get(function () {
 /* =========================
    INDEXES
 ========================= */
-userSchema.index({ email: 1 });
-userSchema.index({ phone: 1 });
-userSchema.index({ role: 1 });
-userSchema.index({ collegeId: 1 });
+
 userSchema.index({ "otp.expiresAt": 1 });
-userSchema.index({ providerId: 1 });
+
 
 /* =========================
    EXPORT
 ========================= */
-export default mongoose.model("User", userSchema);
+module.exports = mongoose.model("User", userSchema);
+

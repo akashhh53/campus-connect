@@ -3,17 +3,28 @@ const app = express();
 require('dotenv').config();
 const main = require('./config/db');
 const cookierParser = require('cookie-parser');
+const router = require('./routes/userauth');
+const redisClient = require('./config/redis');
 
 // Middleware
-app.use(express());
+app.use(express.json());
+
 app.use(cookierParser());
 
 
-// Connect to the database
-main().then(() => {
-  app.listen(process.env.PORT, () => {
-      console.log(`Server is running on port ${process.env.PORT}`);
-  });
-}).catch(err => {
-    console.error('Database connection error:', err);
-});
+app.use('/user',router);
+
+const InitializeConnection=async()=>{
+    try{
+       await Promise.all([main(),redisClient.connect()]);
+       console.log('Connected to MongoDB and Redis');
+         app.listen(process.env.PORT, () => {
+         console.log(`Server is running on port ${process.env.PORT}`);
+          });
+    }
+    catch(err){
+        console.log(err);
+    }
+}
+InitializeConnection();
+

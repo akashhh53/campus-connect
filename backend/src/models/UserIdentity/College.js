@@ -1,4 +1,5 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
+
 
 const collegeSchema = new mongoose.Schema(
   {
@@ -31,4 +32,4 @@ const collegeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export default mongoose.model("College", collegeSchema);
+module.exports = mongoose.model("College", collegeSchema);

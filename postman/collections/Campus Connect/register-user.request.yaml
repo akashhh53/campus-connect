@@ -1,0 +1,25 @@
+$kind: http-request
+url: localhost:3000/user/register-user
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"name\": \"Manjeet Saini\",\r
+
+    \  \"email\": \"manjeetsaini0503@gmail.com\",\r
+
+    \  \"password\": \"Manjeet2@\",\r
+
+    \  \"phone\": \"8823920704\",\r
+
+    \  \"dateOfBirth\": \"2003-08-05\",\r
+
+    \  \"role\": \"student\",\r
+
+    \  \"collegeId\": \"65f2c8a12ab34cd56789ef01\"\r
+
+    }\r\n"
+auth:
+  type: noauth
+order: 2000

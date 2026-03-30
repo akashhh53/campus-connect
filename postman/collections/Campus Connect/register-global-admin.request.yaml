@@ -1,0 +1,21 @@
+$kind: http-request
+url: localhost:3000/user/register-global-admin
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"name\": \"Akash Singh\",\r
+
+    \  \"email\": \"akashsingh9580811832@gmail.com\",\r
+
+    \  \"password\": \"Akash12@\",\r
+
+    \  \"phone\": \"+919580811832\",\r
+
+    \  \"dateOfBirth\": \"2004-07-29\"\r
+
+    }\r\n"
+auth:
+  type: noauth
+order: 1000

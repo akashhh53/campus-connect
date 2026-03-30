@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const adminInviteSchema = new mongoose.Schema(
   {
@@ -48,4 +48,5 @@ const adminInviteSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export default mongoose.model("AdminInvite", adminInviteSchema);
+
+module.exports = mongoose.model("AdminInvite", adminInviteSchema);

@@ -1,57 +1,85 @@
 const express = require('express');
 const router = express.Router();
-const sendAdminInvite = require('../controllers/userAuthen')
-const acceptAdminInvite = require('../controllers/userAuthen')
-const registerGlobalAdmin = require('../controllers/userAuthen')
-const registerUser = require('../controllers/userAuthen')
-const loginUser = require('../controllers/userAuthen')
-const socialLogin = require('../controllers/userAuthen')
+const {
+  sendAdminInvite,
+  acceptAdminInvite,
+  registerGlobalAdmin,
+  registerUser,
+  loginUser,
+  socialLogin,
+  logout,
+  getProfile,
+  updateProfile,
+  forgotPassword,
+  resetPassword,
+  updateRole,
+  updateClg,
+  createCollege
+} = require("../controllers/userAuthen");
+const userMiddleware = require("../middleware/userMiddleware");
+const otpLimiter = require("../middleware/rateLimiter");
+
+
+
 
 
 
 //register global admin
-router.post('/register-global-admin',registerGlobalAdmin);
+router.post('/register-global-admin',registerGlobalAdmin); //working properly
 //invite admin
 router.post("/invite", sendAdminInvite);
 //accept admin invite AND register
 router.post('/accept-invite',acceptAdminInvite);
 //register user
-router.post('/register-user',registerUser);
+router.post('/register-user',registerUser);  //working properly
 //login
 router.post('/login',loginUser);
 //googlelogin or facebook login
 router.post('/social-login',socialLogin);
-//get user profile
-router.get('/profile',getProfile);
-//update user profile
-router.put('/profile',updateProfile);
 //logout
-router.post('/logout',logout);
+router.post('/logout',userMiddleware,logout);
+//create clg
+router.post("/create-college", userMiddleware, createCollege);
+
+
+
+//otp sender+ purpose(eg. register ,login,verifyemail,etc) skip for now 
+// router.post('/request-otp',requestOTP);
+// router.post('/verify-otp',verifyOTP);
+// router.post('/resend-otp',resendOTP);
 //logout all devices
-router.post('/logout-all-devices',logoutAllDevices);
+// router.post('/logout-all-devices',logoutAllDevices);
+
+
+
+
+//get user profile
+router.get('/profile',userMiddleware,getProfile);
+//update user profile
+router.put('/profile',userMiddleware,updateProfile);
+
+
 //forgot password
 router.post('/forgot-password',forgotPassword);
 //reset password
 router.post('/reset-password',resetPassword);
-//request OTP
-router.post('/request-otp',requestOTP);
-//verify OTP
-router.post('/verify-otp',verifyOTP);
-//resend OTP
-router.post('/resend-otp',resendOTP);
-//block and unblock user
-router.post('/block-user',blockUser);
-//list role based users
-router.get('/list-users',listUsers);
-//delete user account
-router.delete('/delete-user',deleteUser);
 //update role
-router.put('/update-role',updateRole);
+router.put("/update-role", userMiddleware, updateRole);
 //update clg
-router.put('/update-clg',updateClg);
-//search users
-router.get('/search-users',searchUsers);
-//update dob visibility
-router.put('/update-dob-visibility',updateDobVisibility);
-//update profile picture
-router.put('/update-profile-picture',updateProfilePicture);
+router.put("/update-clg", userMiddleware, updateClg);
+
+// //block and unblock user
+// router.post('/block-user',blockUser);
+// //list role based users
+// router.get('/list-users',listUsers);
+// //delete user account
+// router.delete('/delete-user',deleteUser);
+// //search users
+// router.get('/search-users',searchUsers);
+// //update dob visibility
+// router.put('/update-dob-visibility',updateDobVisibility);
+// //update profile picture
+// router.put('/update-profile-picture',updateProfilePicture);
+
+
+module.exports = router

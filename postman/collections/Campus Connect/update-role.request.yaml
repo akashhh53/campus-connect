@@ -1,0 +1,13 @@
+$kind: http-request
+url: localhost:3000/user/update-role
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \  \"userId\": \"69be837680f7f16921bb68b7\",\r
+
+    \  \"roleId\": \"698a0515f0f728a7bd096bc9\"\r
+
+    }"
+order: 4344061681488752

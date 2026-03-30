@@ -1,0 +1,26 @@
+$kind: http-request
+name: create-college
+url: localhost:3000/user/update-clg
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"name\": \"Birla Institute of Technology and Science Pilani\",\r
+
+    \  \"code\": \"BITSP\",\r
+
+    \  \"location\": {\r
+
+    \    \"city\": \"Pilani\",\r
+
+    \    \"state\": \"Rajasthan\"\r
+
+    \  },\r
+
+    \  \"logoUrl\":
+    \"https://upload.wikimedia.org/wikipedia/en/thumb/6/69/IIT_Madras_Logo.svg/\
+    1280px-IIT_Madras_Logo.svg.png\"\r
+
+    }"
+order: 4426199670073548
