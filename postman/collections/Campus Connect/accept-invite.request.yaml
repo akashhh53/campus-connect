@@ -1,0 +1,24 @@
+$kind: http-request
+url: localhost:3000/user/accept-invite
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"token\":
+    \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFrYXNoc2luZ2g5NTgwODEx\
+    QGdtYWlsLmNvbSIsInJvbGUiOiI2OThhMDUxNWYwZjcyOGE3YmQwOTZiY2IiLCJjb2xsZWdlSWQ\
+    iOiI2OWM3ZmY5N2E5ZmUxZWYyNjgwYTg1MjYiLCJ0eXBlIjoiYWRtaW4taW52aXRlIiwiaW52aX\
+    RlZEJ5IjoiNjliZTgzNzE4MGY3ZjE2OTIxYmI2OGIyIiwiaWF0IjoxNzc1MDQ4MjA0LCJleHAiO\
+    jE3NzUyMjEwMDR9.9J1TD42O_UVAs_hSvm31z3zhhJjCwlDqJfwuT2gTnmU\",\r
+
+    \  \"name\": \"Akash Singh\",\r
+
+    \  \"password\": \"Test@123456\",\r
+
+    \  \"phone\": \"9580811234\",\r
+
+    \  \"dateOfBirth\": \"1995-08-11\"\r
+
+    }"
+order: 4503498060179743

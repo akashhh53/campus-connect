@@ -1,0 +1,16 @@
+$kind: http-request
+name: update item
+url: localhost:3000/user/lost-found/items/69cd2c14be976cc81ae6c749
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \  \"title\": \"Updated Laptop Bag Title\",\r
+
+    \  \"description\": \"Updated description with more details\",\r
+
+    \  \"location\": \"Library, 3rd floor near computers\"\r
+
+    }"
+order: 4503599627370357

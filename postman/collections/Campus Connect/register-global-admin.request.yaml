@@ -1,19 +1,20 @@
 $kind: http-request
+name: register-global-admin
 url: localhost:3000/user/register-global-admin
 method: POST
 body:
   type: json
   content: "{\r
 
-    \  \"name\": \"Akash Singh\",\r
+    \  \"name\": \"Pratyaksha Sharma\",\r
 
-    \  \"email\": \"akashsingh9580811832@gmail.com\",\r
+    \  \"email\": \"Pratyaksha224@gmail.com\",\r
 
     \  \"password\": \"Akash12@\",\r
 
-    \  \"phone\": \"+919580811832\",\r
+    \  \"phone\": \"+916205909727\",\r
 
-    \  \"dateOfBirth\": \"2004-07-29\"\r
+    \  \"dateOfBirth\": \"2004-02-02\"\r
 
     }\r\n"
 auth:

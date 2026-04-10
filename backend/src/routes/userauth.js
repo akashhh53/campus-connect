@@ -17,6 +17,7 @@ const {
   createCollege
 } = require("../controllers/userAuthen");
 const userMiddleware = require("../middleware/userMiddleware");
+const globalAdminMiddleware = require("../middleware/globalAdminMiddleware");
 const otpLimiter = require("../middleware/rateLimiter");
 
 
@@ -27,7 +28,7 @@ const otpLimiter = require("../middleware/rateLimiter");
 //register global admin
 router.post('/register-global-admin',registerGlobalAdmin); //working properly
 //invite admin
-router.post("/invite", sendAdminInvite);
+router.post("/invite",userMiddleware,globalAdminMiddleware,sendAdminInvite);
 //accept admin invite AND register
 router.post('/accept-invite',acceptAdminInvite);
 //register user
@@ -67,6 +68,24 @@ router.post('/reset-password',resetPassword);
 router.put("/update-role", userMiddleware, updateRole);
 //update clg
 router.put("/update-clg", userMiddleware, updateClg);
+
+
+// Add this to your routes
+router.get('/my-modules', userMiddleware, async (req, res) => {
+  try {
+    const user = req.user;
+    const allowedModules = user.role?.allowedModules || {};
+    
+    res.json({
+      success: true,
+      role: user.role?.name,
+      modules: allowedModules,
+      enabledModules: Object.keys(allowedModules).filter(key => allowedModules[key] === true)
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 
 // //block and unblock user
 // router.post('/block-user',blockUser);

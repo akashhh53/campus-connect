@@ -1,0 +1,14 @@
+$kind: http-request
+name: invite-admin
+url: localhost:3000/user/invite
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"email\": \"akashsingh9580811@gmail.com\",\r
+
+    \ \"collegeId\": \"69c7ff97a9fe1ef2680a8526\"\r
+
+    }"
+order: 4501250650179011

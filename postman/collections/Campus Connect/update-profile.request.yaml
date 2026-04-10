@@ -1,0 +1,8 @@
+$kind: http-request
+name: update-profile
+url: localhost:3000/user/profile
+method: PUT
+body:
+  type: json
+  content: "{\r\n  \"name\": \"Akash Singh\"\r\n}"
+order: 4498692618146860

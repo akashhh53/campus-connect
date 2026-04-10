@@ -1,0 +1,7 @@
+$kind: http-request
+url: localhost:3000/user/lost-found/items/69cd3844401d5a5db3946ec1/claim
+method: POST
+body:
+  type: json
+  content: ""
+order: 4503599627370430

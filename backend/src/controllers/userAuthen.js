@@ -115,17 +115,23 @@ const registerGlobalAdmin = async (req, res) => {
  */
 const sendAdminInvite = async (req, res) => {
   try {
-    const { email, collegeId } = req.body;
-    if (!email || !collegeId) 
-      return res.status(400).json({ message: "Email and collegeId are required" });
+    // ✅ Ensure req.user exists
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ message: "Authentication required to send invite" });
+    }
 
-    // 1️⃣ Check if user already exists and has a role
+    const { email, collegeId } = req.body;
+    if (!email || !collegeId) {
+      return res.status(400).json({ message: "Email and collegeId are required" });
+    }
+
+    // 1️⃣ Check if user already exists with role
     const existingUser = await User.findOne({ email });
     if (existingUser && existingUser.role) {
       return res.status(400).json({ message: "User already exists with this email" });
     }
 
-    // 2️⃣ Find the admin role
+    // 2️⃣ Find admin role
     const adminRole = await Role.findOne({ name: "admin" });
     if (!adminRole) return res.status(500).json({ message: "Admin role not found" });
 
@@ -138,13 +144,13 @@ const sendAdminInvite = async (req, res) => {
     });
     if (existingInvite) return res.status(400).json({ message: "Active invite already exists" });
 
-    // 4️⃣ Generate JWT token for invite (48h expiry)
+    // 4️⃣ Generate JWT token for invite (48h)
     const payload = { 
       email, 
       role: adminRole._id, 
       collegeId, 
       type: "admin-invite", 
-      invitedBy: req.user ? req.user._id : null 
+      invitedBy: req.user._id 
     };
     const inviteToken = jwt.sign(payload, process.env.JWT_KEY, { expiresIn: "48h" });
 
@@ -155,7 +161,7 @@ const sendAdminInvite = async (req, res) => {
       collegeId,
       token: inviteToken,
       expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
-      invitedBy: req.user ? req.user._id : null,
+      invitedBy: req.user._id, // ✅ guaranteed to exist
     });
 
     // 6️⃣ Generate frontend link
@@ -175,10 +181,13 @@ const sendAdminInvite = async (req, res) => {
     `;
     await sendMail(email, "Admin Invite – Campus Connect", html);
 
-    res.status(201).json({ message: "Admin invite sent successfully", inviteExpiresAt: payload.exp });
+    res.status(201).json({
+      message: "Admin invite sent successfully",
+      inviteExpiresAt: payload.exp
+    });
 
   } catch (err) {
-    console.error(err);
+    console.error("Send Admin Invite Error:", err);
     res.status(500).json({ message: "Failed to send admin invite", error: err.message });
   }
 };
@@ -189,74 +198,69 @@ const sendAdminInvite = async (req, res) => {
  */
 const acceptAdminInvite = async (req, res) => {
   try {
-    const { token } = req.body; // frontend sends token from URL
-    if (!token) return res.status(400).json({ message: "Invite token required" });
-
-    // 1️⃣ Verify invite token (JWT)
-    const payload = jwt.verify(token, process.env.JWT_KEY);
-    if (payload.type !== "admin-invite") return res.status(400).json({ message: "Invalid invite token" });
-
-    // 2️⃣ Check if invite is used or expired
-    const invite = await AdminInvite.findOne({ token });
-    if (!invite || invite.used || invite.expiresAt < new Date()) {
-      return res.status(400).json({ message: "Invite expired or already used" });
-    }
-
-    // 3️⃣ Check if user already exists
-    const existingUser = await User.findOne({ email: payload.email });
-    if (existingUser) return res.status(400).json({ message: "User already registered" });
-
-    // 4️⃣ Validate user input (name, DOB, phone, password, etc.)
-    validate(req.body); // your validator from previous code
+    // Use a unique name to avoid conflicts
+    const inviteToken = req.body.token || req.query.token;
 
     const { name, password, phone, dateOfBirth } = req.body;
 
-    // 5️⃣ Hash password
+    if (!inviteToken) {
+      return res.status(400).json({ message: "Invite token required" });
+    }
+    if (!name || !password || !phone || !dateOfBirth) {
+      return res.status(400).json({ message: "Missing mandatory user fields" });
+    }
+
+    // Verify invite token
+    let payload;
+    try {
+      payload = jwt.verify(inviteToken, process.env.JWT_KEY);
+    } catch (err) {
+      return res.status(400).json({ message: "Invalid or expired invite token", error: err.message });
+    }
+
+    if (payload.type !== "admin-invite") {
+      return res.status(400).json({ message: "Invalid invite token type" });
+    }
+
+    const { email, role, collegeId } = payload;
+    if (!email || !role || !collegeId) {
+      return res.status(400).json({ message: "Invite token missing required fields: email, role, collegeId" });
+    }
+
+    const invite = await AdminInvite.findOne({ token: inviteToken });
+    if (!invite) return res.status(400).json({ message: "Invite not found" });
+    if (invite.used) return res.status(400).json({ message: "Invite already used" });
+    if (invite.expiresAt < new Date()) return res.status(400).json({ message: "Invite expired" });
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) return res.status(400).json({ message: "User already registered" });
+
+    const userData = { name, password, phone, dateOfBirth, email, role, collegeId };
+    validate(userData);
+
     const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await User.create({ ...userData, password: hashedPassword, isVerified: { email: true } });
 
-    // 6️⃣ Create user with admin role from invite
-    const newUser = await User.create({
-      name,
-      email: payload.email,
-      password: hashedPassword,
-      phone,
-      dateOfBirth,
-      role: payload.role,
-      collegeId: payload.collegeId,
-      isVerified: { email: true },
-    });
-
-    // 7️⃣ Mark invite as used
     invite.used = true;
     await invite.save();
 
-    // 8️⃣ Generate access & refresh tokens
     const accessToken = generateAccessToken(newUser);
     const refreshToken = generateRefreshToken(newUser);
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
-    // 9️⃣ Send response
-    res.status(201).json({
-      message: "Admin account created successfully",
-      accessToken,
-      user: newUser,
-    });
+    res.status(201).json({ message: "Admin account created successfully", accessToken, user: newUser });
 
   } catch (err) {
-    console.error(err);
-    if (err.name === "TokenExpiredError") {
-      return res.status(400).json({ message: "Invite token expired" });
-    }
+    console.error("AcceptAdminInvite Error:", err);
     res.status(500).json({ message: "Failed to accept admin invite", error: err.message });
   }
 };
-
 /**
  * Generic user registration for roles:
  * student, teacher, alumni
@@ -928,9 +932,9 @@ module.exports = {
   resetPassword,
   updateRole,
   updateClg,
-  createCollege
+  createCollege}
 
-};
+;
 
 
 

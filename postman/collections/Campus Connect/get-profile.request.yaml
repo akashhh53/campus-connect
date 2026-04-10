@@ -1,0 +1,8 @@
+$kind: http-request
+name: get-profile
+url: localhost:3000/user/profile
+method: GET
+body:
+  type: json
+  content: ""
+order: 4461963237057679

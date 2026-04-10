@@ -1,0 +1,35 @@
+$kind: http-request
+name: report-found-items
+url: localhost:3000/user/lost-found/report-found
+method: POST
+body:
+  type: formdata
+  content:
+    - type: text
+      key: title
+      value: "found laptop "
+      description: ""
+      disabled: false
+    - type: text
+      key: description
+      value: "hp envy "
+      description: ""
+      disabled: false
+    - type: text
+      key: location
+      value: incubation centre
+      description: ""
+      disabled: false
+    - type: file
+      key: images
+      src:
+        - postman-cloud:///1f12dd67-86f5-4710-bc80-6d680fdf0fa5
+      description: ""
+      disabled: false
+    - type: file
+      key: images
+      src:
+        - postman-cloud:///1f12dd64-7434-4c00-9e48-8e41aca20dfb
+      description: ""
+      disabled: false
+order: 4503597528640511

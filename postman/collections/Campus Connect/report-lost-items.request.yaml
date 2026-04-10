@@ -1,0 +1,44 @@
+$kind: http-request
+url: localhost:3000/user/lost-found/report-lost
+method: POST
+body:
+  type: formdata
+  content:
+    - type: text
+      key: title
+      value: Black Laptop Bag
+      description: ""
+      disabled: false
+    - type: text
+      key: description
+      value: "hp envy laptop "
+      description: ""
+      disabled: false
+    - type: text
+      key: location
+      value: "lost it in incubation centre "
+      description: ""
+      disabled: false
+    - type: file
+      key: images
+      src:
+        - postman-cloud:///1f12dd64-7434-4c00-9e48-8e41aca20dfb
+      description: ""
+      disabled: false
+    - type: file
+      key: images
+      src:
+        - postman-cloud:///1f12dd67-86f5-4710-bc80-6d680fdf0fa5
+      description: ""
+      disabled: false
+    - type: file
+      key: images
+      src:
+        - postman-cloud:///1f12dd68-137b-4900-93c8-944d2a38e751
+      description: ""
+      disabled: false
+auth:
+  type: bearer
+  credentials:
+    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2OWJlODM3NjgwZjdmMTY5MjFiYjY4YjciLCJlbWFpbCI6Im1hbmplZXRzYWluaTA1MDNAZ21haWwuY29tIiwicm9sZSI6eyJhbGxvd2VkTW9kdWxlcyI6eyJkYXNoYm9hcmQiOnRydWUsImZlZWQiOnRydWUsIm1hcmtldHBsYWNlIjp0cnVlLCJjb25mZXNzaW9ucyI6dHJ1ZSwibGlicmFyeSI6dHJ1ZSwiYWNhZGVtaWNIdWIiOnRydWUsImV2ZW50cyI6dHJ1ZSwibWVzc2FnaW5nIjp0cnVlLCJsb3N0Rm91bmQiOnRydWUsInBvbGxzIjp0cnVlLCJzdXN0YWluYWJpbGl0eSI6dHJ1ZSwiYWRtaW5QYW5lbCI6dHJ1ZSwiZ2xvYmFsQWNjZXNzIjpmYWxzZX0sIl9pZCI6IjY5OGEwNTE1ZjBmNzI4YTdiZDA5NmJjOSIsIm5hbWUiOiJ0ZWFjaGVyIiwicGVybWlzc2lvbnMiOltdfSwiaWF0IjoxNzc1MDUyNjA2LCJleHAiOjE3NzUwNTQ0MDZ9.XnywwBd6zz6erCS5n7aXzkHWXBDxMy7HwIhXhc6AqqM
+order: 4503584361124597

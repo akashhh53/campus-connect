@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const lostFoundItemSchema = new mongoose.Schema(
   {
@@ -30,6 +30,18 @@ const lostFoundItemSchema = new mongoose.Schema(
 
     location: String, // where it was lost/found
 
+    // NEW: Images field
+    images: {
+      type: [String], // Array of image URLs
+      default: [],
+    },
+
+    // NEW: Main/featured image
+    mainImage: {
+      type: String,
+      default: null,
+    },
+
     status: {
       type: String,
       enum: ["pending", "claimed", "resolved"],
@@ -51,5 +63,6 @@ const lostFoundItemSchema = new mongoose.Schema(
 
 // Indexes
 lostFoundItemSchema.index({ collegeId: 1, status: 1, type: 1 });
+lostFoundItemSchema.index({ reportedBy: 1, createdAt: -1 });
 
-export default mongoose.model("LostFoundItem", lostFoundItemSchema);
+module.exports = mongoose.model("LostFoundItem", lostFoundItemSchema);

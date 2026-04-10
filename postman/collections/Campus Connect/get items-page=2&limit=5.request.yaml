@@ -1,0 +1,8 @@
+$kind: http-request
+name: get items?page=2&limit=5
+url: localhost:3000/user/lost-found/items?page=2&limit=5
+method: GET
+queryParams:
+  page: "2"
+  limit: "5"
+order: 4503599627108156
