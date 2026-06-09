@@ -3,45 +3,42 @@ import { Routes, Route, Navigate } from "react-router";
 import LoginPage from "./pages/LoginPage";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
-
 import ModuleProtectedRoute from "./routes/ModuleProtectedRoute";
 
 import DashboardLayout from "./layouts/DashboardLayout";
 
 import DashboardHome from "./pages/dashboard/DashboardHome";
-
 import FeedPage from "./pages/dashboard/FeedPage";
-
 import MarketplacePage from "./pages/dashboard/MarketplacePage";
-
 import ChatPage from "./pages/dashboard/ChatPage";
-
 import ConfessionsPage from "./pages/dashboard/ConfessionsPage";
-
 import LibraryPage from "./pages/dashboard/LibraryPage";
-
 import AcademicHubPage from "./pages/dashboard/AcademicHubPage";
-
 import EventsPage from "./pages/dashboard/EventsPage";
-
 import LostFoundPage from "./pages/dashboard/LostFoundPage";
-
 import PollsPage from "./pages/dashboard/PollsPage";
-
 import SustainabilityPage from "./pages/dashboard/SustainabilityPage";
-
 import AdminPage from "./pages/dashboard/AdminPage";
-
 import GlobalPage from "./pages/dashboard/GlobalPage";
-
 import ProfilePage from "./pages/dashboard/ProfilePage";
+
 import SavedPostsPage from "./pages/profile/SavedPostsPage";
 import UserProfilePage from "./pages/dashboard/UserProfilePage";
 
 const App = () => {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" />} />
+      {/* FIXED ROOT REDIRECT */}
+      <Route
+        path="/"
+        element={
+          localStorage.getItem("userInfo") ? (
+            <Navigate to="/dashboard/feed" replace />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
+      />
 
       <Route path="/login" element={<LoginPage />} />
 
@@ -88,6 +85,7 @@ const App = () => {
             </ModuleProtectedRoute>
           }
         />
+
         <Route
           path="user/:id"
           element={
@@ -96,6 +94,7 @@ const App = () => {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="marketplace"
           element={
