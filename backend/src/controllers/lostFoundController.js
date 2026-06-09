@@ -1,5 +1,5 @@
 const LostFoundItem = require('../models/lost&Found/lostFoundItem');
-const User = require('../models/userIdentity/user');
+const User = require('../models/UserIdentity/user');
 
 // Report a lost item
 const reportLostItem = async (req, res) => {
