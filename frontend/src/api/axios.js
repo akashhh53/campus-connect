@@ -12,12 +12,11 @@ const axiosInstance = axios.create({
 
 axiosInstance.interceptors.request.use(
   (config) => {
-
+    // FIX: use same key as authSlice
     const authData =
-      localStorage.getItem("auth");
+      localStorage.getItem("userInfo");
 
     if (authData) {
-
       const parsedData =
         JSON.parse(authData);
 
@@ -25,7 +24,6 @@ axiosInstance.interceptors.request.use(
         parsedData?.accessToken;
 
       if (token) {
-
         config.headers.Authorization =
           `Bearer ${token}`;
       }
