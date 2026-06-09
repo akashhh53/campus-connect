@@ -1,8 +1,8 @@
-const User = require("../models/UserIdentity/User");
-const Role = require("../models/UserIdentity/Role");
+const User = require("../models/userIdentity/user");
+const Role = require("../models/userIdentity/role");
 const AdminInvite = require("../models/adminInvite/adminInvite");
-const UserProfile = require("../models/UserIdentity/UserProfile");
-const College=require("../models/UserIdentity/College");
+const UserProfile = require("../models/userIdentity/userProfile");
+const College=require("../models/userIdentity/college");
 const validate = require('../utils/validate');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');

@@ -1,4 +1,4 @@
-const User = require("../models/UserIdentity/User");
+const User = require("../models/userIdentity/user");
 const Post = require("../models/feed&Social/post"); // lowercase p
 const Comment = require("../models/feed&Social/comment"); // lowercase c
 const Reaction = require("../models/feed&Social/reaction"); // lowercase r
