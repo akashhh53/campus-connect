@@ -6,7 +6,7 @@ const Notification = require("../models/activityLog/notification");
 const Follow = require("../models/feed&Social/follow");
 const Block = require("../models/feed&Social/block");
 const { createNotification } = require("../utils/notificationHelper");
-const SavedPost = require("../models/feed&Social/SavedPost");
+const SavedPost = require("../models/feed&Social/savedPost");
 
 //update profile
 
