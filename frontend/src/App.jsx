@@ -29,17 +29,7 @@ const App = () => {
   return (
     <Routes>
       {/* FIXED ROOT REDIRECT */}
-      <Route
-        path="/"
-        element={
-          localStorage.getItem("userInfo") ? (
-            <Navigate to="/dashboard/feed" replace />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-
+      <Route path="/" element={<Navigate to="/dashboard/feed" replace />} />
       <Route path="/login" element={<LoginPage />} />
 
       <Route
