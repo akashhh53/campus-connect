@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const academicReplySchema = new mongoose.Schema(
   {
@@ -49,4 +49,4 @@ const academicReplySchema = new mongoose.Schema(
 academicReplySchema.index({ threadId: 1, createdAt: -1 });
 academicReplySchema.index({ author: 1, isDeleted: 1 });
 
-export default mongoose.model("AcademicReply", academicReplySchema);
+module.exports = mongoose.model("AcademicReply", academicReplySchema);

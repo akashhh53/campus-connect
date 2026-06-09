@@ -1,0 +1,11 @@
+$kind: http-request
+url: http://localhost:3000/user/posts/69dbbf9c02174dc29cb2e1aa
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \  \"title\": \"Updated Title - Annual Tech Fest 2024\"\r
+
+    }\r\n"
+order: 2778796288648933

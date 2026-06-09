@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const reactionSchema = new mongoose.Schema(
   {
@@ -32,4 +32,4 @@ const reactionSchema = new mongoose.Schema(
 // Unique reaction per user per target
 reactionSchema.index({ postId: 1, commentId: 1, userId: 1 }, { unique: true });
 
-export default mongoose.model("Reaction", reactionSchema);
+module.exports = mongoose.model("Reaction", reactionSchema);

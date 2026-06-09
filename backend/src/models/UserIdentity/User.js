@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
 
-
 /* =========================
    USER SCHEMA
 ========================= */
@@ -24,13 +23,12 @@ const userSchema = new mongoose.Schema(
     },
 
     phone: {
-  type: String,
-  unique: true,
-  sparse: true,
-  trim: true,
-  index: true,
-},
-
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      index: true,
+    },
 
     password: {
       type: String,
@@ -51,6 +49,10 @@ const userSchema = new mongoose.Schema(
       sparse: true,
     },
     profilePicture: String, // optional
+    bio: {
+      type: String,
+      default: "",
+    },
 
     /* =========================
        PERSONAL INFO
@@ -112,8 +114,8 @@ const userSchema = new mongoose.Schema(
     /* =========================
    PASSWORD RESET
 ========================= */
-resetPasswordToken: { type: String, select: false },
-resetPasswordExpire: Date,
+    resetPasswordToken: { type: String, select: false },
+    resetPasswordExpire: Date,
 
     /* =========================
        REFRESH TOKENS
@@ -161,7 +163,7 @@ resetPasswordExpire: Date,
         return ret;
       },
     },
-  }
+  },
 );
 
 /* =========================
@@ -173,7 +175,10 @@ userSchema.virtual("age").get(function () {
   const today = new Date();
   let age = today.getFullYear() - this.dateOfBirth.getFullYear();
   const monthDiff = today.getMonth() - this.dateOfBirth.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < this.dateOfBirth.getDate())) {
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < this.dateOfBirth.getDate())
+  ) {
     age--;
   }
 
@@ -186,9 +191,7 @@ userSchema.virtual("age").get(function () {
 
 userSchema.index({ "otp.expiresAt": 1 });
 
-
 /* =========================
    EXPORT
 ========================= */
 module.exports = mongoose.model("User", userSchema);
-

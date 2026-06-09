@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const commentSchema = new mongoose.Schema(
   {
@@ -22,13 +22,24 @@ const commentSchema = new mongoose.Schema(
 
     roleAllowed: {
       type: [String],
-      enum: ["student", "teacher", "alumni", "admin", "globalAdmin"],
-      default: ["student", "teacher", "alumni"],
+      enum: [
+        "student",
+        "teacher",
+        "alumni",
+        "admin",
+        "globalAdmin",
+      ],
+      default: [
+        "student",
+        "teacher",
+        "alumni",
+      ],
     },
 
     content: {
       type: String,
       required: true,
+      trim: true,
     },
 
     isDeleted: {
@@ -36,17 +47,47 @@ const commentSchema = new mongoose.Schema(
       default: false,
     },
 
+    // root comment grouping
     parentCommentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Comment",
       default: null,
     },
+
+    // user being replied to
+    replyToUser: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-// Indexes
-commentSchema.index({ postId: 1, createdAt: -1 });
-commentSchema.index({ author: 1, isDeleted: 1 });
+/*
+Indexes
+*/
 
-export default mongoose.model("Comment", commentSchema);
+commentSchema.index({
+  postId: 1,
+  createdAt: -1,
+});
+
+commentSchema.index({
+  author: 1,
+  isDeleted: 1,
+});
+
+// optimized reply fetch
+commentSchema.index({
+  parentCommentId: 1,
+  createdAt: 1,
+});
+
+module.exports =
+  mongoose.model(
+    "Comment",
+    commentSchema
+  );

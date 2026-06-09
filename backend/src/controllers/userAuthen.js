@@ -401,7 +401,7 @@ const loginUser = async (req, res) => {
       httpOnly: true,
       secure: false, // ⚠️ use true only in production (HTTPS)
       sameSite: "strict",
-      maxAge: 15 * 60 * 1000 // 15 minutes
+      maxAge: 200 * 60 * 1000 // 200 minutes
     });
 
     res.cookie("refreshToken", refreshToken, {
@@ -411,20 +411,40 @@ const loginUser = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
-    // 🔟 Send response
-    const reply = {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-    };
+   // 🔟 Send response
 
-    res.status(200).json({
-      message: "Login successful",
-      accessToken, // optional (for frontend use)
-      user: reply,
-    });
+const reply = {
+  _id: user._id,
+
+  name: user.name,
+
+  email: user.email,
+
+  phone: user.phone,
+
+  role: user.role,
+
+  profilePicture:
+    user.profilePicture,
+
+  bio:
+    user.bio,
+};
+
+// TEMP DEBUG (remove later)
+
+console.log(
+  "LOGIN RESPONSE:",
+  reply
+);
+
+res.status(200).json({
+  message: "Login successful",
+
+  accessToken,
+
+  user: reply,
+});
 
   } catch (err) {
     console.error(err);

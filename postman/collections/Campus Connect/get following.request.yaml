@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:3000/user/users/69be837680f7f16921bb68b7/following
+method: GET
+order: 4503577643152215

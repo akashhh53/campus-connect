@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const notificationSchema = new mongoose.Schema(
   {
@@ -48,12 +48,55 @@ const notificationSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    // NEW FIELDS
+    type: {
+      type: String,
+      enum: [
+        "follow",
+        "comment",
+        "reply",
+        "post_like",
+        "comment_like",
+        "mention",
+        "system",
+        "announcement",
+        "message",
+        "event",
+        "marketplace",
+        "admin",
+      ],
+      required: true,
+    },
+
+    actorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    targetId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
+
+    targetModel: {
+      type: String,
+      enum: ["Post", "Comment", "User", "Message", null],
+      default: null,
+    },
+
+    link: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );
 
 // Indexes for fast fetching
+notificationSchema.index({ userId: 1, createdAt: -1 });
 notificationSchema.index({ userId: 1, isRead: 1 });
 notificationSchema.index({ collegeId: 1, visibility: 1, role: 1, createdAt: -1 });
 
-export default mongoose.model("Notification", notificationSchema);
+module.exports = mongoose.model("Notification", notificationSchema);

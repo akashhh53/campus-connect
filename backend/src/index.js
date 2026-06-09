@@ -6,7 +6,16 @@ const cookierParser = require('cookie-parser');
 const router = require('./routes/userauth');
 const redisClient = require('./config/redis');
 const lostFoundRoutes = require('./routes/lostFoundRoutes'); 
+const feedRoutes = require('./routes/feedRoutes');
+const cors = require("cors");
 
+
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
 // Middleware
 app.use(express.json());
 
@@ -15,6 +24,7 @@ app.use(cookierParser());
 
 app.use('/user',router);
 app.use('/user', lostFoundRoutes); 
+app.use('/user', feedRoutes);   
 
 const InitializeConnection=async()=>{
     try{

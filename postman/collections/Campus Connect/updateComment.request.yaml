@@ -1,0 +1,12 @@
+$kind: http-request
+url: http://localhost:3000/user/comments/69dbcc98582c04f68b2c29c1
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \  \"content\": \"This is my updated comment! I wanted to add more
+    thoughts.\"\r
+
+    }"
+order: 4347426260578832

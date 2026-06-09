@@ -1,0 +1,11 @@
+$kind: http-request
+url: http://localhost:3000/user/comments/69dbcc98582c04f68b2c29c1/reply
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"content\": \"Thanks for your comment! I totally agree with you.\"\r
+
+    }"
+order: 4287987541977306

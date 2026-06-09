@@ -1,0 +1,8 @@
+$kind: http-request
+name: pin?unpinBy admin
+url: http://localhost:3000/user/posts/69dbc6c76de5a17bfd7f75d4/pin
+method: PUT
+body:
+  type: json
+  content: ""
+order: 3488046544796714

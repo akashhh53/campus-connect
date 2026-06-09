@@ -1,0 +1,4 @@
+$kind: http-request
+url: http://localhost:3000/user/my-posts
+method: GET
+order: 3621908072002913

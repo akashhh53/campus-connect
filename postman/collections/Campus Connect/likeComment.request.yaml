@@ -1,0 +1,7 @@
+$kind: http-request
+url: http://localhost:3000/user/comments/69dbcfb4bdc2bd0cd4771803/like
+method: POST
+body:
+  type: json
+  content: ""
+order: 4425026603929849

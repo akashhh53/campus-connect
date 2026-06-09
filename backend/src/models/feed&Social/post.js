@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const postSchema = new mongoose.Schema(
   {
@@ -18,7 +18,6 @@ const postSchema = new mongoose.Schema(
       type: [String],
       enum: ["student", "teacher", "alumni", "admin", "globalAdmin"],
       default: ["student", "teacher", "alumni"],
-      // Who can view this post
     },
 
     title: {
@@ -31,12 +30,19 @@ const postSchema = new mongoose.Schema(
       required: true,
     },
 
-    attachments: [String], // images, docs, etc.
+    attachments: [String],
 
     module: {
       type: String,
-      enum: ["feed", "academicHub", "mentorship"],
-      default: "feed",
+      enum: [
+        "feed", "events", "academicHub", "mentorship",
+        "announcements", "discussion", "poll", "question",
+        "assignment", "exam", "result", "studyMaterial", "timetable",
+        "internship", "job", "workshop", "hackathon",
+        "club", "sports", "festival", "placement",
+        "alert", "feedback", "report"
+      ],
+      default: "feed"
     },
 
     visibility: {
@@ -55,7 +61,19 @@ const postSchema = new mongoose.Schema(
       default: false,
     },
 
-    tags: [String], // subjects, courses, topics
+    tags: [String],
+
+    // ✅ YEH FIELD ADD KAR - Comment count ke liye
+    commentCount: {
+      type: Number,
+      default: 0,
+    },
+
+    // ✅ YEH FIELD ADD KAR - Reaction count ke liye (optional)
+    reactionsCount: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );
@@ -65,4 +83,4 @@ postSchema.index({ collegeId: 1, visibility: 1, createdAt: -1 });
 postSchema.index({ author: 1, module: 1 });
 postSchema.index({ isDeleted: 1 });
 
-export default mongoose.model("Post", postSchema);
+module.exports = mongoose.model("Post", postSchema);
