@@ -1,6 +1,7 @@
 import { useDispatch, useSelector } from "react-redux";
 import { logout } from "../features/auth/authSlice";
 import { useState, useEffect, useRef } from "react";
+import { logoutUser } from "../services/authService";
 
 const Topbar = () => {
   const dispatch = useDispatch();
@@ -11,16 +12,22 @@ const Topbar = () => {
   const reduxUser = useSelector((state) => state.auth.user);
 
   // LocalStorage user
-  const localData = JSON.parse(localStorage.getItem("user"));
+  const localData = JSON.parse(localStorage.getItem("userInfo") || "null");
 
   // Final user
   const user = localData?.user || reduxUser;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch (err) {
+      console.log(err);
+    }
+
     dispatch(logout());
+
     setIsDropdownOpen(false);
   };
-
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -137,10 +144,12 @@ const Topbar = () => {
                 backgroundColor: isDropdownOpen ? "#f3f4f6" : "transparent",
               }}
               onMouseEnter={(e) => {
-                if (!isDropdownOpen) e.currentTarget.style.backgroundColor = "#f9fafb";
+                if (!isDropdownOpen)
+                  e.currentTarget.style.backgroundColor = "#f9fafb";
               }}
               onMouseLeave={(e) => {
-                if (!isDropdownOpen) e.currentTarget.style.backgroundColor = "transparent";
+                if (!isDropdownOpen)
+                  e.currentTarget.style.backgroundColor = "transparent";
               }}
             >
               {/* Avatar */}
@@ -149,7 +158,8 @@ const Topbar = () => {
                   width: "40px",
                   height: "40px",
                   borderRadius: "50%",
-                  background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+                  background:
+                    "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -219,7 +229,8 @@ const Topbar = () => {
                   width: "240px",
                   background: "white",
                   borderRadius: "12px",
-                  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.02)",
+                  boxShadow:
+                    "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.02)",
                   border: "1px solid #e5e7eb",
                   overflow: "hidden",
                   animation: "slideDown 0.2s ease",

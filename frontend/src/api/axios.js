@@ -72,7 +72,7 @@ axiosInstance.interceptors.response.use(
 
         originalRequest.headers.Authorization = `Bearer ${refresh.data.accessToken}`;
 
-        return axios(originalRequest);
+       return axiosInstance(originalRequest);
       } catch {
         localStorage.removeItem("userInfo");
 
