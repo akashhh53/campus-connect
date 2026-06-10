@@ -2,44 +2,55 @@ const jwt = require("jsonwebtoken");
 const redisClient = require("../config/redis");
 const User = require("../models/userIdentity/user");
 
-
 const userMiddleware = async (req, res, next) => {
   try {
-    // 1️⃣ Get token (cookie OR Authorization header)
+    // Get token from cookie OR Authorization header
+
+    const authHeader = req.headers.authorization;
+
     const token =
       req.cookies?.token ||
-      req.headers.authorization?.split(" ")[1];
+      (authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null);
 
     if (!token) {
-      return res.status(401).json({ message: "Token required" });
+      return res.status(401).json({
+        message: "Token required",
+      });
     }
 
-    // 2️⃣ Verify JWT
+    // Verify JWT
+
     const payload = jwt.verify(token, process.env.JWT_KEY);
 
-    // 3️⃣ Check token blocklist (Redis)
+    // Check Redis blocklist
+
     const isBlocked = await redisClient.exists(`token:${token}`);
+
     if (isBlocked) {
-      return res.status(401).json({ message: "Token revoked" });
+      return res.status(401).json({
+        message: "Token revoked",
+      });
     }
 
-    // 4️⃣ Fetch user
+    // Get user
+
     const user = await User.findById(payload._id).populate("role");
 
     if (!user) {
-      return res.status(401).json({ message: "User not found" });
+      return res.status(401).json({
+        message: "User not found",
+      });
     }
 
-    // 5️⃣ Attach user to request
     req.user = user;
     req.token = token;
 
     next();
-
   } catch (err) {
+    console.log("AUTH ERROR:", err.message);
+
     return res.status(401).json({
-      message: "Unauthorized",
-      error: err.message
+      message: err.message,
     });
   }
 };
