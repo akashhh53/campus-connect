@@ -20,7 +20,7 @@ axiosInstance.interceptors.request.use(
       if (stored) {
         const userInfo = JSON.parse(stored);
 
-        if (userInfo.accessToken) {
+        if (userInfo?.accessToken) {
           config.headers.Authorization = `Bearer ${userInfo.accessToken}`;
         }
       }
@@ -56,19 +56,23 @@ axiosInstance.interceptors.response.use(
           },
         );
 
-        const stored = JSON.parse(localStorage.getItem("userInfo"));
+        const stored = localStorage.getItem("userInfo");
 
-        stored.accessToken = refresh.data.accessToken;
+        if (stored) {
+          const userInfo = JSON.parse(stored);
 
-        localStorage.setItem(
-          "userInfo",
+          userInfo.accessToken = refresh.data.accessToken;
 
-          JSON.stringify(stored),
-        );
+          localStorage.setItem(
+            "userInfo",
+
+            JSON.stringify(userInfo),
+          );
+        }
 
         originalRequest.headers.Authorization = `Bearer ${refresh.data.accessToken}`;
 
-        return axiosInstance(originalRequest);
+        return axios(originalRequest);
       } catch {
         localStorage.removeItem("userInfo");
 
