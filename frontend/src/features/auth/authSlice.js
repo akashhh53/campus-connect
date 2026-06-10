@@ -7,11 +7,9 @@ const userInfoFromStorage = localStorage.getItem("userInfo")
 const initialState = {
   user: userInfoFromStorage?.user || null,
 
-  accessToken:
-    userInfoFromStorage?.accessToken || null,
+  accessToken: userInfoFromStorage?.accessToken || null,
 
-  isAuthenticated:
-    userInfoFromStorage ? true : false,
+  isAuthenticated: userInfoFromStorage ? true : false,
 };
 
 const authSlice = createSlice({
@@ -23,18 +21,16 @@ const authSlice = createSlice({
     setCredentials: (state, action) => {
       state.user = action.payload.user;
 
-      state.accessToken =
-        action.payload.accessToken;
+      state.accessToken = action.payload.accessToken;
 
       state.isAuthenticated = true;
 
-      localStorage.setItem(
-        "userInfo",
-        JSON.stringify(action.payload)
-      );
+      localStorage.setItem("userInfo", JSON.stringify(action.payload));
     },
 
     logout: (state) => {
+      console.log("AUTH LOGOUT EXECUTED");
+
       state.user = null;
 
       state.accessToken = null;
@@ -46,7 +42,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { setCredentials, logout } =
-  authSlice.actions;
+export const { setCredentials, logout } = authSlice.actions;
 
 export default authSlice.reducer;
