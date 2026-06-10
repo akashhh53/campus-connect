@@ -72,13 +72,17 @@ axiosInstance.interceptors.response.use(
 
         originalRequest.headers.Authorization = `Bearer ${refresh.data.accessToken}`;
 
-       return axiosInstance(originalRequest);
-      } catch {
-        localStorage.removeItem("userInfo");
+        return axiosInstance(originalRequest);
+      } catch (err) {
+        console.log("Refresh failed:", err?.response?.data);
 
-        window.location = "/login";
+        if (err.response?.status === 401) {
+          localStorage.removeItem("userInfo");
 
-        return Promise.reject(error);
+          window.location = "/login";
+        }
+
+        return Promise.reject(err);
       }
     }
 
