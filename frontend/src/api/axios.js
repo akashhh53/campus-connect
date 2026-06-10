@@ -97,11 +97,11 @@ axiosInstance.interceptors.response.use(
         console.log("BEFORE REMOVE:", localStorage.getItem("userInfo"));
 
         if (err.response?.status === 401) {
-          console.error("REFRESH 401 — KEEPING STORAGE FOR DEBUG");
+          console.log("REMOVING userInfo");
 
-          // localStorage.removeItem("userInfo");
+          localStorage.removeItem("userInfo");
 
-          // window.location = "/login";
+          window.location = "/login";
         }
 
         console.log("AFTER REMOVE:", localStorage.getItem("userInfo"));
