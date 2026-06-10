@@ -2,18 +2,16 @@ const User = require("../models/userIdentity/user");
 const Role = require("../models/userIdentity/role");
 const AdminInvite = require("../models/adminInvite/adminInvite");
 const UserProfile = require("../models/userIdentity/userProfile");
-const College=require("../models/userIdentity/college");
-const validate = require('../utils/validate');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const { generateAccessToken, generateRefreshToken } = require('../utils/token');
-const generateOTP = require('../utils/otp');
-const sendMail = require('../utils/mailer');
+const College = require("../models/userIdentity/college");
+const validate = require("../utils/validate");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const { generateAccessToken, generateRefreshToken } = require("../utils/token");
+const generateOTP = require("../utils/otp");
+const sendMail = require("../utils/mailer");
 const mongoose = require("mongoose");
 const redisClient = require("../config/redis");
 const crypto = require("crypto");
-
-
 
 //register global admin
 const registerGlobalAdmin = async (req, res) => {
@@ -28,12 +26,12 @@ const registerGlobalAdmin = async (req, res) => {
 
     // 2️⃣ Check GLOBAL ADMIN LIMIT (MAX 2)
     const globalAdminCount = await User.countDocuments({
-      role: globalAdminRole._id
+      role: globalAdminRole._id,
     });
 
     if (globalAdminCount >= 2) {
       return res.status(403).json({
-        message: "Maximum 2 Global Admins are allowed"
+        message: "Maximum 2 Global Admins are allowed",
       });
     }
 
@@ -47,12 +45,11 @@ const registerGlobalAdmin = async (req, res) => {
         dateOfBirth,
         role: globalAdminRole._id,
         collegeId: new mongoose.Types.ObjectId("000000000000000000000000"),
-
       });
     } catch (validationError) {
       return res.status(400).json({
         message: "Validation failed",
-        errors: validationError.message
+        errors: validationError.message,
       });
     }
 
@@ -90,7 +87,6 @@ const registerGlobalAdmin = async (req, res) => {
       accessToken,
       user: newGlobalAdmin,
     });
-
   } catch (err) {
     console.error(err);
 
@@ -99,13 +95,13 @@ const registerGlobalAdmin = async (req, res) => {
       const field = Object.keys(err.keyValue)[0];
       return res.status(400).json({
         message: `Duplicate ${field} detected`,
-        value: err.keyValue[field]
+        value: err.keyValue[field],
       });
     }
 
     res.status(500).json({
       message: "Failed to register Global Admin",
-      error: err.message
+      error: err.message,
     });
   }
 };
@@ -117,23 +113,30 @@ const sendAdminInvite = async (req, res) => {
   try {
     // ✅ Ensure req.user exists
     if (!req.user || !req.user._id) {
-      return res.status(401).json({ message: "Authentication required to send invite" });
+      return res
+        .status(401)
+        .json({ message: "Authentication required to send invite" });
     }
 
     const { email, collegeId } = req.body;
     if (!email || !collegeId) {
-      return res.status(400).json({ message: "Email and collegeId are required" });
+      return res
+        .status(400)
+        .json({ message: "Email and collegeId are required" });
     }
 
     // 1️⃣ Check if user already exists with role
     const existingUser = await User.findOne({ email });
     if (existingUser && existingUser.role) {
-      return res.status(400).json({ message: "User already exists with this email" });
+      return res
+        .status(400)
+        .json({ message: "User already exists with this email" });
     }
 
     // 2️⃣ Find admin role
     const adminRole = await Role.findOne({ name: "admin" });
-    if (!adminRole) return res.status(500).json({ message: "Admin role not found" });
+    if (!adminRole)
+      return res.status(500).json({ message: "Admin role not found" });
 
     // 3️⃣ Check for existing active invite
     const existingInvite = await AdminInvite.findOne({
@@ -142,17 +145,20 @@ const sendAdminInvite = async (req, res) => {
       used: false,
       expiresAt: { $gt: new Date() },
     });
-    if (existingInvite) return res.status(400).json({ message: "Active invite already exists" });
+    if (existingInvite)
+      return res.status(400).json({ message: "Active invite already exists" });
 
     // 4️⃣ Generate JWT token for invite (48h)
-    const payload = { 
-      email, 
-      role: adminRole._id, 
-      collegeId, 
-      type: "admin-invite", 
-      invitedBy: req.user._id 
+    const payload = {
+      email,
+      role: adminRole._id,
+      collegeId,
+      type: "admin-invite",
+      invitedBy: req.user._id,
     };
-    const inviteToken = jwt.sign(payload, process.env.JWT_KEY, { expiresIn: "48h" });
+    const inviteToken = jwt.sign(payload, process.env.JWT_KEY, {
+      expiresIn: "48h",
+    });
 
     // 5️⃣ Save invite in DB
     await AdminInvite.create({
@@ -165,7 +171,9 @@ const sendAdminInvite = async (req, res) => {
     });
 
     // 6️⃣ Generate frontend link
-    const frontendURL = process.env.FRONTEND_URL || `http://localhost:${process.env.PORT || 3000}`;
+    const frontendURL =
+      process.env.FRONTEND_URL ||
+      `http://localhost:${process.env.PORT || 3000}`;
     const link = `${frontendURL}/accept-admin-invite?token=${inviteToken}`;
 
     // 7️⃣ Send email
@@ -183,12 +191,13 @@ const sendAdminInvite = async (req, res) => {
 
     res.status(201).json({
       message: "Admin invite sent successfully",
-      inviteExpiresAt: payload.exp
+      inviteExpiresAt: payload.exp,
     });
-
   } catch (err) {
     console.error("Send Admin Invite Error:", err);
-    res.status(500).json({ message: "Failed to send admin invite", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Failed to send admin invite", error: err.message });
   }
 };
 
@@ -215,7 +224,12 @@ const acceptAdminInvite = async (req, res) => {
     try {
       payload = jwt.verify(inviteToken, process.env.JWT_KEY);
     } catch (err) {
-      return res.status(400).json({ message: "Invalid or expired invite token", error: err.message });
+      return res
+        .status(400)
+        .json({
+          message: "Invalid or expired invite token",
+          error: err.message,
+        });
     }
 
     if (payload.type !== "admin-invite") {
@@ -224,22 +238,42 @@ const acceptAdminInvite = async (req, res) => {
 
     const { email, role, collegeId } = payload;
     if (!email || !role || !collegeId) {
-      return res.status(400).json({ message: "Invite token missing required fields: email, role, collegeId" });
+      return res
+        .status(400)
+        .json({
+          message:
+            "Invite token missing required fields: email, role, collegeId",
+        });
     }
 
     const invite = await AdminInvite.findOne({ token: inviteToken });
     if (!invite) return res.status(400).json({ message: "Invite not found" });
-    if (invite.used) return res.status(400).json({ message: "Invite already used" });
-    if (invite.expiresAt < new Date()) return res.status(400).json({ message: "Invite expired" });
+    if (invite.used)
+      return res.status(400).json({ message: "Invite already used" });
+    if (invite.expiresAt < new Date())
+      return res.status(400).json({ message: "Invite expired" });
 
     const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: "User already registered" });
+    if (existingUser)
+      return res.status(400).json({ message: "User already registered" });
 
-    const userData = { name, password, phone, dateOfBirth, email, role, collegeId };
+    const userData = {
+      name,
+      password,
+      phone,
+      dateOfBirth,
+      email,
+      role,
+      collegeId,
+    };
     validate(userData);
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = await User.create({ ...userData, password: hashedPassword, isVerified: { email: true } });
+    const newUser = await User.create({
+      ...userData,
+      password: hashedPassword,
+      isVerified: { email: true },
+    });
 
     invite.used = true;
     await invite.save();
@@ -251,14 +285,21 @@ const acceptAdminInvite = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.status(201).json({ message: "Admin account created successfully", accessToken, user: newUser });
-
+    res
+      .status(201)
+      .json({
+        message: "Admin account created successfully",
+        accessToken,
+        user: newUser,
+      });
   } catch (err) {
     console.error("AcceptAdminInvite Error:", err);
-    res.status(500).json({ message: "Failed to accept admin invite", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Failed to accept admin invite", error: err.message });
   }
 };
 /**
@@ -267,7 +308,15 @@ const acceptAdminInvite = async (req, res) => {
  */
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, phone, dateOfBirth, role: roleName, collegeId } = req.body;
+    const {
+      name,
+      email,
+      password,
+      phone,
+      dateOfBirth,
+      role: roleName,
+      collegeId,
+    } = req.body;
 
     // 1️⃣ Find the role in DB
     const role = await Role.findOne({ name: roleName });
@@ -275,11 +324,17 @@ const registerUser = async (req, res) => {
 
     // 2️⃣ Check if email or phone already exists
     const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: "User with this email already exists" });
+    if (existingUser)
+      return res
+        .status(400)
+        .json({ message: "User with this email already exists" });
 
     if (phone) {
       const existingPhone = await User.findOne({ phone });
-      if (existingPhone) return res.status(400).json({ message: "User with this phone already exists" });
+      if (existingPhone)
+        return res
+          .status(400)
+          .json({ message: "User with this phone already exists" });
     }
 
     // 3️⃣ Validate input
@@ -294,7 +349,12 @@ const registerUser = async (req, res) => {
         collegeId,
       });
     } catch (validationError) {
-      return res.status(400).json({ message: "Validation failed", errors: validationError.message });
+      return res
+        .status(400)
+        .json({
+          message: "Validation failed",
+          errors: validationError.message,
+        });
     }
 
     // 4️⃣ Hash password
@@ -331,14 +391,20 @@ const registerUser = async (req, res) => {
       accessToken,
       user: newUser,
     });
-
   } catch (err) {
     console.error(err);
     if (err.code === 11000) {
       const field = Object.keys(err.keyValue)[0];
-      return res.status(400).json({ message: `Duplicate ${field} detected`, value: err.keyValue[field] });
+      return res
+        .status(400)
+        .json({
+          message: `Duplicate ${field} detected`,
+          value: err.keyValue[field],
+        });
     }
-    res.status(500).json({ message: "Failed to register user", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Failed to register user", error: err.message });
   }
 };
 
@@ -351,7 +417,9 @@ const loginUser = async (req, res) => {
 
     // 1️⃣ Validate input
     if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
     }
 
     // 2️⃣ Find user
@@ -365,12 +433,16 @@ const loginUser = async (req, res) => {
 
     // 3️⃣ Check blocked
     if (user.isBlocked) {
-      return res.status(403).json({ message: "Your account is blocked. Contact admin." });
+      return res
+        .status(403)
+        .json({ message: "Your account is blocked. Contact admin." });
     }
 
     // 4️⃣ Check email verified
     if (!user.isVerified.email) {
-      return res.status(403).json({ message: "Please verify your email before logging in" });
+      return res
+        .status(403)
+        .json({ message: "Please verify your email before logging in" });
     }
 
     // 5️⃣ Compare password
@@ -401,60 +473,97 @@ const loginUser = async (req, res) => {
       httpOnly: true,
       secure: false, // ⚠️ use true only in production (HTTPS)
       sameSite: "strict",
-      maxAge: 200 * 60 * 1000 // 200 minutes
+      maxAge: 200 * 60 * 1000, // 200 minutes
     });
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: false, // ⚠️ use true in production
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-   // 🔟 Send response
+    // 🔟 Send response
 
-const reply = {
-  _id: user._id,
+    const reply = {
+      _id: user._id,
 
-  name: user.name,
+      name: user.name,
 
-  email: user.email,
+      email: user.email,
 
-  phone: user.phone,
+      phone: user.phone,
 
-  role: user.role,
+      role: user.role,
 
-  profilePicture:
-    user.profilePicture,
+      profilePicture: user.profilePicture,
 
-  bio:
-    user.bio,
-};
+      bio: user.bio,
+    };
 
-// TEMP DEBUG (remove later)
+    // TEMP DEBUG (remove later)
 
-console.log(
-  "LOGIN RESPONSE:",
-  reply
-);
+    console.log("LOGIN RESPONSE:", reply);
 
-res.status(200).json({
-  message: "Login successful",
+    res.status(200).json({
+      message: "Login successful",
 
-  accessToken,
+      accessToken,
 
-  user: reply,
-});
-
+      user: reply,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Login failed", error: err.message });
   }
 };
 
+const refreshAccessToken = async (req, res) => {
+  try {
+    const refreshToken = req.cookies?.refreshToken;
 
+    if (!refreshToken) {
+      return res.status(401).json({
+        message: "No refresh token",
+      });
+    }
 
-//social login 
+    const payload = jwt.verify(refreshToken, process.env.JWT_KEY);
+
+    const user = await User.findById(payload._id).populate(
+      "role",
+      "name permissions allowedModules",
+    );
+
+    if (!user) {
+      return res.status(401).json({
+        message: "User not found",
+      });
+    }
+
+    const accessToken = generateAccessToken(user);
+
+    res.cookie("token", accessToken, {
+      httpOnly: true,
+
+      secure: process.env.NODE_ENV === "production",
+
+      sameSite: "strict",
+
+      maxAge: 30 * 60 * 1000,
+    });
+
+    return res.status(200).json({
+      accessToken,
+    });
+  } catch {
+    return res.status(401).json({
+      message: "Refresh expired",
+    });
+  }
+};
+
+//social login
 const socialLogin = async (req, res) => {
   try {
     const {
@@ -464,18 +573,20 @@ const socialLogin = async (req, res) => {
       name,
       avatar,
       role: roleName,
-      collegeId
+      collegeId,
     } = req.body;
 
     if (!provider || !providerId || !email) {
-      return res.status(400).json({ message: "Missing required social login data" });
+      return res
+        .status(400)
+        .json({ message: "Missing required social login data" });
     }
 
     // 1️⃣ Check existing user
     let user = await User.findOne({
       email,
       provider,
-      providerId
+      providerId,
     }).populate("role");
 
     // ================== LOGIN ==================
@@ -488,27 +599,27 @@ const socialLogin = async (req, res) => {
         httpOnly: true,
         secure: false,
         sameSite: "strict",
-        maxAge: 15 * 60 * 1000
+        maxAge: 15 * 60 * 1000,
       });
 
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: false,
         sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
       return res.status(200).json({
         message: "Social login successful",
         accessToken,
-        user
+        user,
       });
     }
 
     // ================== SIGNUP ==================
     if (!roleName || !collegeId) {
       return res.status(400).json({
-        message: "Role and college are required for first-time social login"
+        message: "Role and college are required for first-time social login",
       });
     }
 
@@ -525,7 +636,7 @@ const socialLogin = async (req, res) => {
       providerId,
       role: role._id,
       collegeId,
-      isVerified: { email: true }
+      isVerified: { email: true },
     });
 
     const accessToken = generateAccessToken(user);
@@ -536,34 +647,33 @@ const socialLogin = async (req, res) => {
       httpOnly: true,
       secure: false,
       sameSite: "strict",
-      maxAge: 15 * 60 * 1000
+      maxAge: 15 * 60 * 1000,
     });
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: false,
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.status(201).json({
       message: "Account created via social login",
       accessToken,
-      user
+      user,
     });
-
   } catch (err) {
     console.error(err);
     res.status(500).json({
       message: "Social login failed",
-      error: err.message
+      error: err.message,
     });
   }
 };
 
-//validate the token and logout the user by removing the refresh token 
+//validate the token and logout the user by removing the refresh token
 // from the database and blacklisting the
-//  access token in Redis. This ensures that the user is logged out from all 
+//  access token in Redis. This ensures that the user is logged out from all
 // devices and cannot use any existing tokens to access protected routes.
 const logout = async (req, res) => {
   try {
@@ -571,7 +681,7 @@ const logout = async (req, res) => {
 
     if (!refreshToken) {
       return res.status(400).json({
-        message: "No refresh token found"
+        message: "No refresh token found",
       });
     }
 
@@ -583,7 +693,7 @@ const logout = async (req, res) => {
 
     // 🧹 Remove current refresh token
     user.refreshTokens = user.refreshTokens.filter(
-      (rt) => rt.token !== refreshToken
+      (rt) => rt.token !== refreshToken,
     );
 
     await user.save();
@@ -595,35 +705,30 @@ const logout = async (req, res) => {
       const decoded = jwt.decode(accessToken);
       const expiry = decoded.exp - Math.floor(Date.now() / 1000);
 
-      await redisClient.setEx(
-        `token:${accessToken}`,
-        expiry,
-        "blocked"
-      );
+      await redisClient.setEx(`token:${accessToken}`, expiry, "blocked");
     }
 
     // 🍪 Clear cookies
     res.clearCookie("refreshToken", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict"
+      sameSite: "strict",
     });
 
     res.clearCookie("token", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict"
+      sameSite: "strict",
     });
 
     return res.status(200).json({
-      message: "Logged out successfully"
+      message: "Logged out successfully",
     });
-
   } catch (error) {
     console.error("Logout error:", error);
     return res.status(500).json({
       message: "Logout failed",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -659,13 +764,12 @@ const getProfile = async (req, res) => {
       message: "Profile fetched successfully",
       data: response,
     });
-
   } catch (error) {
     console.error("Profile Error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch profile",
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -682,9 +786,9 @@ const updateProfile = async (req, res) => {
       {
         name,
         phone,
-        globalOptIn
+        globalOptIn,
       },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     ).select("-password -refreshTokens");
 
     // 2️⃣ Update or Create UserProfile
@@ -695,13 +799,13 @@ const updateProfile = async (req, res) => {
       profile = await UserProfile.findOneAndUpdate(
         { userId },
         req.body.profile, // { bio, dob, etc. }
-        { new: true }
+        { new: true },
       );
     } else {
       // create new
       profile = await UserProfile.create({
         userId,
-        ...req.body.profile
+        ...req.body.profile,
       });
     }
 
@@ -711,10 +815,9 @@ const updateProfile = async (req, res) => {
       message: "Profile updated successfully",
       data: {
         user,
-        profile
-      }
+        profile,
+      },
     });
-
   } catch (error) {
     console.error("Update Profile Error:", error.message);
 
@@ -737,7 +840,10 @@ const forgotPassword = async (req, res) => {
     const resetToken = crypto.randomBytes(20).toString("hex");
 
     // Hash token and save to user
-    user.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+    user.resetPasswordToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
     user.resetPasswordExpire = Date.now() + 15 * 60 * 1000; // 15 minutes
     await user.save();
 
@@ -754,9 +860,7 @@ const forgotPassword = async (req, res) => {
     res.status(200).json({ message: "Password reset email sent" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Server error",
-      message: error.message
-     });
+    res.status(500).json({ message: "Server error", message: error.message });
   }
 };
 
@@ -764,17 +868,20 @@ const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body;
     if (!token || !newPassword)
-      return res.status(400).json({ message: "Token and new password are required" });
+      return res
+        .status(400)
+        .json({ message: "Token and new password are required" });
 
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
     // Find user by token and check expiry
     const user = await User.findOne({
       resetPasswordToken: hashedToken,
-      resetPasswordExpire: { $gt: Date.now() }
+      resetPasswordExpire: { $gt: Date.now() },
     }).select("+password"); // include password for hashing
 
-    if (!user) return res.status(400).json({ message: "Invalid or expired token" });
+    if (!user)
+      return res.status(400).json({ message: "Invalid or expired token" });
 
     // Hash the new password
     const salt = await bcrypt.genSalt(10);
@@ -793,12 +900,10 @@ const resetPassword = async (req, res) => {
   }
 };
 
-
 //ONLY ADMIN CAN CHANGE ROLE
 const updateRole = async (req, res) => {
   try {
-   
-      const { roleId, userId } = req.body;
+    const { roleId, userId } = req.body;
     // 1️⃣ Validate input
     if (!roleId || !userId) {
       return res.status(400).json({
@@ -819,7 +924,7 @@ const updateRole = async (req, res) => {
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { role: roleId },
-      { new: true }
+      { new: true },
     ).populate("role", "name permissions");
 
     if (!updatedUser) {
@@ -830,9 +935,8 @@ const updateRole = async (req, res) => {
       message: "Role updated successfully",
       user: updatedUser,
     });
-
   } catch (error) {
-    console.error("ERROR:", error);  // 👈 IMPORTANT
+    console.error("ERROR:", error); // 👈 IMPORTANT
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -881,7 +985,6 @@ const createCollege = async (req, res) => {
       message: "College created successfully",
       college,
     });
-
   } catch (error) {
     console.error("ERROR:", error);
     res.status(500).json({ message: "Server error" });
@@ -924,14 +1027,15 @@ const updateClg = async (req, res) => {
     await user.save();
 
     // ✅ Populate after update
-    const updatedUser = await User.findById(req.user._id)
-      .populate("collegeId", "name code location");
+    const updatedUser = await User.findById(req.user._id).populate(
+      "collegeId",
+      "name code location",
+    );
 
     res.status(200).json({
       message: "College updated successfully",
       user: updatedUser,
     });
-
   } catch (error) {
     console.error("ERROR:", error);
     res.status(500).json({ message: "Server error" });
@@ -944,6 +1048,7 @@ module.exports = {
   registerGlobalAdmin,
   registerUser,
   loginUser,
+  refreshAccessToken,
   socialLogin,
   logout,
   getProfile,
@@ -952,11 +1057,5 @@ module.exports = {
   resetPassword,
   updateRole,
   updateClg,
-  createCollege}
-
-;
-
-
-
-
-
+  createCollege,
+};
