@@ -15,130 +15,70 @@ const axiosInstance = axios.create({
 axiosInstance.interceptors.request.use(
   (config) => {
     try {
-      const stored =
-        localStorage.getItem(
-          "userInfo",
-        );
+      const stored = localStorage.getItem("userInfo");
 
       if (stored) {
-        const userInfo =
-          JSON.parse(stored);
+        const userInfo = JSON.parse(stored);
 
-        if (
-          userInfo.accessToken
-        ) {
-          config.headers.Authorization =
-            `Bearer ${userInfo.accessToken}`;
+        if (userInfo.accessToken) {
+          config.headers.Authorization = `Bearer ${userInfo.accessToken}`;
         }
       }
 
       return config;
-    } catch (err) {
-      console.log(
-        "TOKEN PARSE ERROR",
-        err,
-      );
-
+    } catch {
       return config;
     }
   },
 
-  (error) =>
-    Promise.reject(error),
+  (error) => Promise.reject(error),
 );
 
 // RESPONSE
 
 axiosInstance.interceptors.response.use(
-  (response) =>
-    response,
+  (response) => response,
 
   async (error) => {
-    const originalRequest =
-      error.config;
+    const originalRequest = error.config;
 
-    console.log(
-      "STATUS:",
-      error.response?.status,
-    );
-
-    if (
-      error.response
-        ?.status ===
-        401 &&
-
-      !originalRequest
-        ?._retry
-    ) {
-      console.log(
-        "401 DETECTED",
-      );
-
-      originalRequest._retry =
-        true;
+    if (error.response?.status === 401 && !originalRequest?._retry) {
+      originalRequest._retry = true;
 
       try {
-        console.log(
-          "CALLING REFRESH",
+        const refresh = await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL}/user/refresh`,
+
+          {},
+
+          {
+            withCredentials: true,
+          },
         );
 
-        const refresh =
-          await axios.post(
-            `${import.meta.env.VITE_API_BASE_URL}/user/refresh`,
+        const stored = JSON.parse(localStorage.getItem("userInfo"));
 
-            {},
-
-            {
-              withCredentials:
-                true,
-            },
-          );
-
-        console.log(
-          "REFRESH SUCCESS",
-          refresh.data,
-        );
-
-        const stored =
-          JSON.parse(
-            localStorage.getItem(
-              "userInfo",
-            ),
-          );
-
-        stored.accessToken =
-          refresh.data.accessToken;
+        stored.accessToken = refresh.data.accessToken;
 
         localStorage.setItem(
           "userInfo",
 
-          JSON.stringify(
-            stored,
-          ),
+          JSON.stringify(stored),
         );
 
-        originalRequest.headers.Authorization =
-          `Bearer ${refresh.data.accessToken}`;
+        originalRequest.headers.Authorization = `Bearer ${refresh.data.accessToken}`;
 
-        return axiosInstance(
-          originalRequest,
-        );
-      } catch (err) {
-        console.log(
-          "REFRESH FAILED",
-          err?.response
-            ?.data,
-        );
+        return axiosInstance(originalRequest);
+      } catch {
+        localStorage.removeItem("userInfo");
 
-        return Promise.reject(
-          err,
-        );
+        window.location = "/login";
+
+        return Promise.reject(error);
       }
     }
 
-    return Promise.reject(
-      error,
-    );
+    return Promise.reject(error);
   },
 );
 

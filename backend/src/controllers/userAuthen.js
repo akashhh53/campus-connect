@@ -224,12 +224,10 @@ const acceptAdminInvite = async (req, res) => {
     try {
       payload = jwt.verify(inviteToken, process.env.JWT_KEY);
     } catch (err) {
-      return res
-        .status(400)
-        .json({
-          message: "Invalid or expired invite token",
-          error: err.message,
-        });
+      return res.status(400).json({
+        message: "Invalid or expired invite token",
+        error: err.message,
+      });
     }
 
     if (payload.type !== "admin-invite") {
@@ -238,12 +236,9 @@ const acceptAdminInvite = async (req, res) => {
 
     const { email, role, collegeId } = payload;
     if (!email || !role || !collegeId) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Invite token missing required fields: email, role, collegeId",
-        });
+      return res.status(400).json({
+        message: "Invite token missing required fields: email, role, collegeId",
+      });
     }
 
     const invite = await AdminInvite.findOne({ token: inviteToken });
@@ -288,13 +283,11 @@ const acceptAdminInvite = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res
-      .status(201)
-      .json({
-        message: "Admin account created successfully",
-        accessToken,
-        user: newUser,
-      });
+    res.status(201).json({
+      message: "Admin account created successfully",
+      accessToken,
+      user: newUser,
+    });
   } catch (err) {
     console.error("AcceptAdminInvite Error:", err);
     res
@@ -349,12 +342,10 @@ const registerUser = async (req, res) => {
         collegeId,
       });
     } catch (validationError) {
-      return res
-        .status(400)
-        .json({
-          message: "Validation failed",
-          errors: validationError.message,
-        });
+      return res.status(400).json({
+        message: "Validation failed",
+        errors: validationError.message,
+      });
     }
 
     // 4️⃣ Hash password
@@ -395,12 +386,10 @@ const registerUser = async (req, res) => {
     console.error(err);
     if (err.code === 11000) {
       const field = Object.keys(err.keyValue)[0];
-      return res
-        .status(400)
-        .json({
-          message: `Duplicate ${field} detected`,
-          value: err.keyValue[field],
-        });
+      return res.status(400).json({
+        message: `Duplicate ${field} detected`,
+        value: err.keyValue[field],
+      });
     }
     res
       .status(500)
@@ -415,75 +404,85 @@ const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // 1️⃣ Validate input
     if (!email || !password) {
-      return res
-        .status(400)
-        .json({ message: "Email and password are required" });
+      return res.status(400).json({
+        message: "Email and password are required",
+      });
     }
 
-    // 2️⃣ Find user
-    const user = await User.findOne({ email })
+    const user = await User.findOne({
+      email,
+    })
       .select("+password")
       .populate("role", "name permissions allowedModules");
 
     if (!user) {
-      return res.status(401).json({ message: "Invalid email or password" });
+      return res.status(401).json({
+        message: "Invalid email or password",
+      });
     }
 
-    // 3️⃣ Check blocked
     if (user.isBlocked) {
-      return res
-        .status(403)
-        .json({ message: "Your account is blocked. Contact admin." });
+      return res.status(403).json({
+        message: "Your account is blocked. Contact admin.",
+      });
     }
 
-    // 4️⃣ Check email verified
     if (!user.isVerified.email) {
-      return res
-        .status(403)
-        .json({ message: "Please verify your email before logging in" });
+      return res.status(403).json({
+        message: "Please verify your email before logging in",
+      });
     }
 
-    // 5️⃣ Compare password
     const isPasswordMatch = await bcrypt.compare(password, user.password);
+
     if (!isPasswordMatch) {
-      return res.status(401).json({ message: "Invalid email or password" });
+      return res.status(401).json({
+        message: "Invalid email or password",
+      });
     }
 
-    // 6️⃣ Generate tokens
     const accessToken = generateAccessToken(user);
+
     const refreshToken = generateRefreshToken(user);
 
-    // 7️⃣ Manage refresh tokens (max 5)
-    if (user.refreshTokens.length >= 5) user.refreshTokens.shift();
+    if (user.refreshTokens.length >= 5) {
+      user.refreshTokens.shift();
+    }
+
     user.refreshTokens.push({
       token: refreshToken,
+
       createdAt: new Date(),
+
       ipAddress: req.ip,
+
       userAgent: req.headers["user-agent"],
     });
 
-    // 8️⃣ Update last login
     user.lastLoginAt = new Date();
+
     await user.save();
 
-    // 🔥 9️⃣ SET BOTH COOKIES (IMPORTANT FIX)
     res.cookie("token", accessToken, {
       httpOnly: true,
-      secure: true, // ⚠️ use true only in production (HTTPS)
+
+      secure: true,
+
       sameSite: "none",
-      maxAge: 200 * 60 * 1000, // 200 minutes
+
+      maxAge: 200 * 60 * 1000,
     });
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: true, // ⚠️ use true in production
-      sameSite: "none",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
 
-    // 🔟 Send response
+      secure: true,
+
+      sameSite: "none",
+
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     const reply = {
       _id: user._id,
@@ -501,11 +500,7 @@ const loginUser = async (req, res) => {
       bio: user.bio,
     };
 
-    // TEMP DEBUG (remove later)
-
-    console.log("LOGIN RESPONSE:", reply);
-
-    res.status(200).json({
+    return res.status(200).json({
       message: "Login successful",
 
       accessToken,
@@ -514,7 +509,12 @@ const loginUser = async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Login failed", error: err.message });
+
+    return res.status(500).json({
+      message: "Login failed",
+
+      error: err.message,
+    });
   }
 };
 
@@ -542,15 +542,17 @@ const refreshAccessToken = async (req, res) => {
     }
 
     const accessToken = generateAccessToken(user);
-res.cookie("token", accessToken, {
-  httpOnly: true,
 
-  secure: true,
+    res.cookie("token", accessToken, {
+      httpOnly: true,
 
-  sameSite: "none",
+      secure: true,
 
-  maxAge: 30 * 60 * 1000,
-});
+      sameSite: "none",
+
+      maxAge: 30 * 60 * 1000,
+    });
+
     return res.status(200).json({
       accessToken,
     });
