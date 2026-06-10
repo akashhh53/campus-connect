@@ -7,12 +7,13 @@ import sidebarConfig from "../utils/sidebarConfig";
 import Topbar from "../components/Topbar";
 
 const DashboardLayout = () => {
-  const { user } = useSelector(
-    (state) => state.auth
-  );
+  const reduxUser = useSelector((state) => state.auth.user);
 
-  const modules =
-    user?.role?.allowedModules || {};
+  const localData = JSON.parse(localStorage.getItem("userInfo") || "null");
+
+  const user = reduxUser || localData?.user;
+
+  const modules = user?.role?.allowedModules || {};
 
   return (
     <div
@@ -21,75 +22,65 @@ const DashboardLayout = () => {
         minHeight: "100vh",
       }}
     >
-
       {/* Sidebar */}
 
       <div
-  style={{
-    width: "250px",
-    background: "#111827",
-    color: "white",
-    padding: "20px",
+        style={{
+          width: "250px",
+          background: "#111827",
+          color: "white",
+          padding: "20px",
 
-    position: "sticky",
-    top: 0,
-    height: "100vh",
+          position: "sticky",
+          top: 0,
+          height: "100vh",
 
-    overflowY: "auto",
-  }}
->
+          overflowY: "auto",
+        }}
+      >
         <h2>Campus Connect</h2>
 
         <hr />
 
-        {
-          sidebarConfig.map((item) => {
+        {sidebarConfig.map((item) => {
+          if (!modules[item.module]) {
+            return null;
+          }
 
-            if (!modules[item.module]) {
-              return null;
-            }
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              style={({ isActive }) => ({
+                display: "block",
 
-            return (
-              <NavLink
-                key={item.path}
+                color: "white",
 
-                to={item.path}
+                marginBottom: "20px",
 
-                style={({ isActive }) => ({
-                  display: "block",
+                textDecoration: "none",
 
-                  color: "white",
+                background: isActive ? "#2563eb" : "transparent",
 
-                  marginBottom: "20px",
+                padding: "10px",
 
-                  textDecoration: "none",
-
-                  background: isActive
-                    ? "#2563eb"
-                    : "transparent",
-
-                  padding: "10px",
-
-                  borderRadius: "8px",
-                })}
+                borderRadius: "8px",
+              })}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                }}
               >
-               <div
-  style={{
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-  }}
->
-  <item.icon />
+                <item.icon />
 
-  <span>
-    {item.name}
-  </span>
-</div>
-              </NavLink>
-            );
-          })
-        }
+                <span>{item.name}</span>
+              </div>
+            </NavLink>
+          );
+        })}
       </div>
 
       {/* Right Side */}
@@ -98,10 +89,9 @@ const DashboardLayout = () => {
         style={{
           flex: 1,
           background: "#f3f4f6",
-            color: "#111827"
+          color: "#111827",
         }}
       >
-
         {/* Topbar */}
 
         <Topbar />
@@ -115,9 +105,7 @@ const DashboardLayout = () => {
         >
           <Outlet />
         </div>
-
       </div>
-
     </div>
   );
 };

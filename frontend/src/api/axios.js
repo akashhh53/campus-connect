@@ -17,8 +17,6 @@ axiosInstance.interceptors.request.use(
     try {
       const stored = localStorage.getItem("userInfo");
 
-      console.log("REQUEST userInfo:", stored);
-
       if (stored) {
         const userInfo = JSON.parse(stored);
 
@@ -28,9 +26,7 @@ axiosInstance.interceptors.request.use(
       }
 
       return config;
-    } catch (err) {
-      console.log("REQUEST ERROR", err);
-
+    } catch {
       return config;
     }
   },
@@ -46,12 +42,8 @@ axiosInstance.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    console.log("API ERROR:", error.response?.status, originalRequest?.url);
-
     if (error.response?.status === 401 && !originalRequest?._retry) {
       originalRequest._retry = true;
-
-      console.log("STARTING REFRESH");
 
       try {
         const refresh = await axios.post(
@@ -64,47 +56,29 @@ axiosInstance.interceptors.response.use(
           },
         );
 
-        console.log("REFRESH SUCCESS", refresh.data);
-
         const stored = localStorage.getItem("userInfo");
 
-        console.log("BEFORE UPDATE:", stored);
-
         if (stored) {
-          const userInfo = JSON.parse(stored);
-
-          userInfo.accessToken = refresh.data.accessToken;
-
           localStorage.setItem(
             "userInfo",
 
-            JSON.stringify(userInfo),
-          );
+            JSON.stringify({
+              ...JSON.parse(stored),
 
-          console.log("AFTER UPDATE:", localStorage.getItem("userInfo"));
+              accessToken: refresh.data.accessToken,
+            }),
+          );
         }
 
         originalRequest.headers.Authorization = `Bearer ${refresh.data.accessToken}`;
 
         return axiosInstance(originalRequest);
       } catch (err) {
-        console.log(
-          "REFRESH FAILED",
-          err?.response?.status,
-          err?.response?.data,
-        );
-
-        console.log("BEFORE REMOVE:", localStorage.getItem("userInfo"));
-
         if (err.response?.status === 401) {
-          console.log("REMOVING userInfo");
-
           localStorage.removeItem("userInfo");
 
           window.location = "/login";
         }
-
-        console.log("AFTER REMOVE:", localStorage.getItem("userInfo"));
 
         return Promise.reject(err);
       }

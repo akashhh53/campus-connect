@@ -4,6 +4,7 @@ import PostCard from "../../components/feed/PostCard";
 import CreatePost from "../../components/feed/CreatePost";
 import { searchUsers } from "../../services/searchService";
 import debounce from "lodash/debounce";
+import { useNavigate } from "react-router";
 
 const FeedPage = () => {
   const [posts, setPosts] = useState([]);
@@ -24,6 +25,7 @@ const FeedPage = () => {
   const createPostRef = useRef(null);
   const observer = useRef();
   const feedRef = useRef(null);
+  const navigate = useNavigate();
 
   // Fetch Posts
   const fetchPosts = async (currentPage = 1, append = false) => {
@@ -59,11 +61,14 @@ const FeedPage = () => {
       if (loading || loadingMore) return;
       if (observer.current) observer.current.disconnect();
 
-      observer.current = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && hasNext) {
-          fetchPosts(page + 1, true);
-        }
-      }, { threshold: 0.1, rootMargin: "100px" });
+      observer.current = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting && hasNext) {
+            fetchPosts(page + 1, true);
+          }
+        },
+        { threshold: 0.1, rootMargin: "100px" },
+      );
 
       if (node) observer.current.observe(node);
     },
@@ -127,16 +132,15 @@ const FeedPage = () => {
   };
 
   const handleUserClick = (userId) => {
-    window.location.href = `/dashboard/user/${userId}`;
+    navigate(`/dashboard/user/${userId}`);
   };
-
   const handleCreatePost = async (postData) => {
     try {
       setCreating(true);
       const newPost = await createPost(postData);
       setPosts((prevPosts) => [newPost.data, ...prevPosts]);
       setShowCreatePost(false);
-      feedRef.current?.scrollIntoView({ behavior: 'smooth' });
+      feedRef.current?.scrollIntoView({ behavior: "smooth" });
     } catch (err) {
       console.error("Create post error:", err);
       alert(err.response?.data?.message || "Failed to create post");
@@ -152,7 +156,7 @@ const FeedPage = () => {
   };
 
   const refreshFeed = () => {
-    setRefreshKey(prev => prev + 1);
+    setRefreshKey((prev) => prev + 1);
   };
 
   // Skeleton Loading State
@@ -161,16 +165,65 @@ const FeedPage = () => {
       <div style={styles.container}>
         <div style={styles.header}>
           <div style={styles.headerContent}>
-            <div style={{...styles.skeleton, width: '250px', height: '40px', marginBottom: '10px'}}></div>
-            <div style={{...styles.skeleton, width: '180px', height: '20px'}}></div>
+            <div
+              style={{
+                ...styles.skeleton,
+                width: "250px",
+                height: "40px",
+                marginBottom: "10px",
+              }}
+            ></div>
+            <div
+              style={{ ...styles.skeleton, width: "180px", height: "20px" }}
+            ></div>
           </div>
         </div>
         <div style={styles.content}>
-          <div style={{...styles.skeleton, width: '100%', height: '52px', borderRadius: '16px', marginBottom: '20px'}}></div>
-          <div style={{...styles.skeleton, width: '100%', height: '64px', borderRadius: '20px', marginBottom: '20px'}}></div>
-          <div style={{...styles.skeleton, width: '100%', height: '320px', borderRadius: '20px', marginBottom: '20px'}}></div>
-          <div style={{...styles.skeleton, width: '100%', height: '320px', borderRadius: '20px', marginBottom: '20px'}}></div>
-          <div style={{...styles.skeleton, width: '100%', height: '320px', borderRadius: '20px', marginBottom: '20px'}}></div>
+          <div
+            style={{
+              ...styles.skeleton,
+              width: "100%",
+              height: "52px",
+              borderRadius: "16px",
+              marginBottom: "20px",
+            }}
+          ></div>
+          <div
+            style={{
+              ...styles.skeleton,
+              width: "100%",
+              height: "64px",
+              borderRadius: "20px",
+              marginBottom: "20px",
+            }}
+          ></div>
+          <div
+            style={{
+              ...styles.skeleton,
+              width: "100%",
+              height: "320px",
+              borderRadius: "20px",
+              marginBottom: "20px",
+            }}
+          ></div>
+          <div
+            style={{
+              ...styles.skeleton,
+              width: "100%",
+              height: "320px",
+              borderRadius: "20px",
+              marginBottom: "20px",
+            }}
+          ></div>
+          <div
+            style={{
+              ...styles.skeleton,
+              width: "100%",
+              height: "320px",
+              borderRadius: "20px",
+              marginBottom: "20px",
+            }}
+          ></div>
         </div>
       </div>
     );
@@ -183,7 +236,9 @@ const FeedPage = () => {
         <div style={styles.header}>
           <div style={styles.headerContent}>
             <h1 style={styles.title}>Campus Feed</h1>
-            <p style={styles.subtitle}>Stay updated with the latest activities</p>
+            <p style={styles.subtitle}>
+              Stay updated with the latest activities
+            </p>
           </div>
         </div>
         <div style={styles.content}>
@@ -191,7 +246,9 @@ const FeedPage = () => {
             <div style={styles.errorIcon}>⚠️</div>
             <h3>Unable to load feed</h3>
             <p>{error}</p>
-            <button onClick={refreshFeed} style={styles.retryBtn}>Try Again</button>
+            <button onClick={refreshFeed} style={styles.retryBtn}>
+              Try Again
+            </button>
           </div>
         </div>
       </div>
@@ -211,7 +268,15 @@ const FeedPage = () => {
         {/* Search Section */}
         <div style={styles.searchSection} ref={searchRef}>
           <div style={styles.searchWrapper}>
-            <svg style={styles.searchIcon} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              style={styles.searchIcon}
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
@@ -224,7 +289,9 @@ const FeedPage = () => {
               style={styles.searchInput}
             />
             {search && (
-              <button onClick={clearSearch} style={styles.clearBtn}>✕</button>
+              <button onClick={clearSearch} style={styles.clearBtn}>
+                ✕
+              </button>
             )}
           </div>
 
@@ -247,7 +314,11 @@ const FeedPage = () => {
                     >
                       <div style={styles.userAvatar}>
                         {user.profilePicture ? (
-                          <img src={user.profilePicture} alt={user.name} style={styles.avatarImg} />
+                          <img
+                            src={user.profilePicture}
+                            alt={user.name}
+                            style={styles.avatarImg}
+                          />
                         ) : (
                           <div style={styles.avatarPlaceholder}>
                             {user.name?.charAt(0).toUpperCase()}
@@ -270,12 +341,17 @@ const FeedPage = () => {
         {/* Create Post Section */}
         <div style={styles.createPostWrapper} ref={createPostRef}>
           {!showCreatePost ? (
-            <div style={styles.createPostCompact} onClick={() => setShowCreatePost(true)}>
+            <div
+              style={styles.createPostCompact}
+              onClick={() => setShowCreatePost(true)}
+            >
               <div style={styles.compactAvatar}>
                 <div style={styles.compactAvatarPlaceholder}>👤</div>
               </div>
               <div style={styles.compactInput}>
-                <span style={styles.compactPlaceholder}>What's on your mind?</span>
+                <span style={styles.compactPlaceholder}>
+                  What's on your mind?
+                </span>
               </div>
               <div style={styles.compactActions}>
                 <button style={styles.compactMediaBtn}>📷</button>
@@ -299,7 +375,10 @@ const FeedPage = () => {
               <div style={styles.emptyIcon}>📝</div>
               <h3>No posts yet</h3>
               <p>Be the first to share something with the campus community!</p>
-              <button onClick={() => setShowCreatePost(true)} style={styles.createFirstBtn}>
+              <button
+                onClick={() => setShowCreatePost(true)}
+                style={styles.createFirstBtn}
+              >
                 Create First Post
               </button>
             </div>
@@ -308,7 +387,10 @@ const FeedPage = () => {
               <div
                 key={post._id}
                 ref={index === posts.length - 1 ? lastPostRef : null}
-                style={{...styles.postItem, animationDelay: `${index * 0.05}s`}}
+                style={{
+                  ...styles.postItem,
+                  animationDelay: `${index * 0.05}s`,
+                }}
               >
                 <PostCard post={post} onImageClick={handleImageClick} />
               </div>
@@ -365,135 +447,136 @@ const FeedPage = () => {
 
 const styles = {
   container: {
-    minHeight: '100vh',
-    width: '100%',
-    background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
-    overflowX: 'hidden',
+    minHeight: "100vh",
+    width: "100%",
+    background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+    overflowX: "hidden",
   },
   header: {
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    color: 'white',
-    padding: 'clamp(1.5rem, 5vw, 3rem) clamp(1rem, 4vw, 2rem)',
-    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    color: "white",
+    padding: "clamp(1.5rem, 5vw, 3rem) clamp(1rem, 4vw, 2rem)",
+    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.1)",
   },
   headerContent: {
-    maxWidth: 'min(1200px, 95%)',
-    margin: '0 auto',
+    maxWidth: "min(1200px, 95%)",
+    margin: "0 auto",
   },
   title: {
-    fontSize: 'clamp(1.5rem, 5vw, 2.5rem)',
+    fontSize: "clamp(1.5rem, 5vw, 2.5rem)",
     fontWeight: 700,
-    margin: '0 0 0.5rem 0',
-    letterSpacing: '-0.5px',
+    margin: "0 0 0.5rem 0",
+    letterSpacing: "-0.5px",
   },
   subtitle: {
-    fontSize: 'clamp(0.875rem, 3vw, 1rem)',
+    fontSize: "clamp(0.875rem, 3vw, 1rem)",
     opacity: 0.9,
   },
   content: {
-    maxWidth: 'min(1200px, 95%)',
-    margin: '-1.5rem auto 0',
-    padding: '0 clamp(0.75rem, 3vw, 1rem) clamp(1.5rem, 4vw, 2rem)',
+    maxWidth: "min(1200px, 95%)",
+    margin: "-1.5rem auto 0",
+    padding: "0 clamp(0.75rem, 3vw, 1rem) clamp(1.5rem, 4vw, 2rem)",
   },
   skeleton: {
-    background: 'linear-gradient(90deg, #e0e0e0 0%, #f0f0f0 50%, #e0e0e0 100%)',
-    backgroundSize: '1000px 100%',
-    animation: 'shimmer 1.5s infinite',
+    background: "linear-gradient(90deg, #e0e0e0 0%, #f0f0f0 50%, #e0e0e0 100%)",
+    backgroundSize: "1000px 100%",
+    animation: "shimmer 1.5s infinite",
   },
   searchSection: {
-    position: 'relative',
-    marginBottom: '1.5rem',
+    position: "relative",
+    marginBottom: "1.5rem",
   },
   searchWrapper: {
-    position: 'relative',
-    background: 'white',
-    borderRadius: '16px',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-    transition: 'all 0.3s ease',
+    position: "relative",
+    background: "white",
+    borderRadius: "16px",
+    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
+    transition: "all 0.3s ease",
   },
   searchIcon: {
-    position: 'absolute',
-    left: 'clamp(14px, 4vw, 18px)',
-    top: '50%',
-    transform: 'translateY(-50%)',
-    color: '#9ca3af',
+    position: "absolute",
+    left: "clamp(14px, 4vw, 18px)",
+    top: "50%",
+    transform: "translateY(-50%)",
+    color: "#9ca3af",
   },
   searchInput: {
-    width: '100%',
-    padding: 'clamp(12px, 3.5vw, 14px) clamp(40px, 8vw, 45px) clamp(12px, 3.5vw, 14px) clamp(42px, 8vw, 48px)',
-    border: 'none',
-    borderRadius: '16px',
-    fontSize: 'clamp(14px, 3.5vw, 15px)',
-    outline: 'none',
-    background: 'transparent',
+    width: "100%",
+    padding:
+      "clamp(12px, 3.5vw, 14px) clamp(40px, 8vw, 45px) clamp(12px, 3.5vw, 14px) clamp(42px, 8vw, 48px)",
+    border: "none",
+    borderRadius: "16px",
+    fontSize: "clamp(14px, 3.5vw, 15px)",
+    outline: "none",
+    background: "transparent",
   },
   clearBtn: {
-    position: 'absolute',
-    right: 'clamp(10px, 3vw, 14px)',
-    top: '50%',
-    transform: 'translateY(-50%)',
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    color: '#9ca3af',
-    fontSize: '18px',
-    padding: '4px',
-    borderRadius: '50%',
+    position: "absolute",
+    right: "clamp(10px, 3vw, 14px)",
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "#9ca3af",
+    fontSize: "18px",
+    padding: "4px",
+    borderRadius: "50%",
   },
   searchResults: {
-    position: 'absolute',
-    top: 'calc(100% + 8px)',
+    position: "absolute",
+    top: "calc(100% + 8px)",
     left: 0,
     right: 0,
-    background: 'white',
-    borderRadius: 'clamp(12px, 4vw, 16px)',
-    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.12)',
-    overflow: 'hidden',
+    background: "white",
+    borderRadius: "clamp(12px, 4vw, 16px)",
+    boxShadow: "0 20px 40px rgba(0, 0, 0, 0.12)",
+    overflow: "hidden",
     zIndex: 1000,
-    animation: 'slideDown 0.2s ease',
-    maxHeight: 'min(500px, 70vh)',
+    animation: "slideDown 0.2s ease",
+    maxHeight: "min(500px, 70vh)",
   },
   noResults: {
-    padding: 'clamp(30px, 10vw, 40px) clamp(16px, 5vw, 20px)',
-    textAlign: 'center',
-    color: '#6b7280',
+    padding: "clamp(30px, 10vw, 40px) clamp(16px, 5vw, 20px)",
+    textAlign: "center",
+    color: "#6b7280",
   },
   noResultsIcon: {
-    fontSize: '48px',
-    marginBottom: '12px',
+    fontSize: "48px",
+    marginBottom: "12px",
   },
   resultsList: {
-    maxHeight: '400px',
-    overflowY: 'auto',
+    maxHeight: "400px",
+    overflowY: "auto",
   },
   userResult: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 'clamp(10px, 3vw, 12px)',
-    padding: 'clamp(12px, 3.5vw, 14px) clamp(16px, 4vw, 20px)',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    borderBottom: '1px solid #f3f4f6',
+    display: "flex",
+    alignItems: "center",
+    gap: "clamp(10px, 3vw, 12px)",
+    padding: "clamp(12px, 3.5vw, 14px) clamp(16px, 4vw, 20px)",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    borderBottom: "1px solid #f3f4f6",
   },
   userAvatar: {
     flexShrink: 0,
   },
   avatarImg: {
-    width: 'clamp(40px, 10vw, 48px)',
-    height: 'clamp(40px, 10vw, 48px)',
-    borderRadius: '50%',
-    objectFit: 'cover',
+    width: "clamp(40px, 10vw, 48px)",
+    height: "clamp(40px, 10vw, 48px)",
+    borderRadius: "50%",
+    objectFit: "cover",
   },
   avatarPlaceholder: {
-    width: 'clamp(40px, 10vw, 48px)',
-    height: 'clamp(40px, 10vw, 48px)',
-    borderRadius: '50%',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    color: 'white',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 'clamp(16px, 4vw, 20px)',
+    width: "clamp(40px, 10vw, 48px)",
+    height: "clamp(40px, 10vw, 48px)",
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    color: "white",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "clamp(16px, 4vw, 20px)",
     fontWeight: 600,
   },
   userInfo: {
@@ -502,164 +585,164 @@ const styles = {
   },
   userName: {
     fontWeight: 600,
-    color: '#1f2937',
-    marginBottom: '4px',
-    fontSize: 'clamp(14px, 3.5vw, 15px)',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    color: "#1f2937",
+    marginBottom: "4px",
+    fontSize: "clamp(14px, 3.5vw, 15px)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   userEmail: {
-    fontSize: 'clamp(12px, 3vw, 13px)',
-    color: '#6b7280',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    fontSize: "clamp(12px, 3vw, 13px)",
+    color: "#6b7280",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   viewBtn: {
-    color: '#9ca3af',
-    fontSize: '20px',
-    transition: 'all 0.2s ease',
+    color: "#9ca3af",
+    fontSize: "20px",
+    transition: "all 0.2s ease",
   },
   createPostWrapper: {
-    marginBottom: '1.5rem',
+    marginBottom: "1.5rem",
   },
   createPostCompact: {
-    background: 'white',
-    borderRadius: 'clamp(16px, 4vw, 20px)',
-    padding: '12px 16px',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    cursor: 'pointer',
-    transition: 'all 0.3s ease',
+    background: "white",
+    borderRadius: "clamp(16px, 4vw, 20px)",
+    padding: "12px 16px",
+    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    cursor: "pointer",
+    transition: "all 0.3s ease",
   },
   compactAvatar: {
     flexShrink: 0,
   },
   compactAvatarPlaceholder: {
-    width: '40px',
-    height: '40px',
-    borderRadius: '50%',
-    background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '20px',
+    width: "40px",
+    height: "40px",
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "20px",
   },
   compactInput: {
     flex: 1,
   },
   compactPlaceholder: {
-    fontSize: '15px',
-    color: '#9ca3af',
+    fontSize: "15px",
+    color: "#9ca3af",
   },
   compactActions: {
     flexShrink: 0,
   },
   compactMediaBtn: {
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: '20px',
-    padding: '8px',
-    borderRadius: '50%',
-    transition: 'all 0.2s ease',
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    fontSize: "20px",
+    padding: "8px",
+    borderRadius: "50%",
+    transition: "all 0.2s ease",
   },
   createPostExpanded: {
-    background: 'white',
-    borderRadius: 'clamp(16px, 4vw, 20px)',
-    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.12)',
-    overflow: 'hidden',
-    animation: 'expandForm 0.3s ease',
+    background: "white",
+    borderRadius: "clamp(16px, 4vw, 20px)",
+    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.12)",
+    overflow: "hidden",
+    animation: "expandForm 0.3s ease",
   },
   postsFeed: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.5rem',
+    display: "flex",
+    flexDirection: "column",
+    gap: "1.5rem",
   },
   postItem: {
-    animation: 'fadeInUp 0.4s ease-out forwards',
+    animation: "fadeInUp 0.4s ease-out forwards",
     opacity: 0,
   },
   loadingMore: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '32px 0',
-    gap: '12px',
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "32px 0",
+    gap: "12px",
   },
   spinner: {
-    width: '40px',
-    height: '40px',
-    border: '3px solid #e5e7eb',
-    borderTop: '3px solid #667eea',
-    borderRadius: '50%',
-    animation: 'spin 0.8s linear infinite',
+    width: "40px",
+    height: "40px",
+    border: "3px solid #e5e7eb",
+    borderTop: "3px solid #667eea",
+    borderRadius: "50%",
+    animation: "spin 0.8s linear infinite",
   },
   loadingMoreText: {
-    fontSize: '14px',
-    color: '#6b7280',
+    fontSize: "14px",
+    color: "#6b7280",
   },
   endOfFeed: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '16px',
-    padding: '32px 0',
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "16px",
+    padding: "32px 0",
   },
   endLine: {
     flex: 1,
-    height: '1px',
-    background: 'linear-gradient(90deg, transparent, #cbd5e1, transparent)',
+    height: "1px",
+    background: "linear-gradient(90deg, transparent, #cbd5e1, transparent)",
   },
   emptyFeed: {
-    textAlign: 'center',
-    padding: 'clamp(40px, 15vw, 60px) clamp(20px, 5vw, 40px)',
-    background: 'white',
-    borderRadius: 'clamp(16px, 4vw, 20px)',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+    textAlign: "center",
+    padding: "clamp(40px, 15vw, 60px) clamp(20px, 5vw, 40px)",
+    background: "white",
+    borderRadius: "clamp(16px, 4vw, 20px)",
+    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)",
   },
   emptyIcon: {
-    fontSize: '64px',
-    marginBottom: '20px',
+    fontSize: "64px",
+    marginBottom: "20px",
   },
   createFirstBtn: {
-    padding: '10px 24px',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    color: 'white',
-    border: 'none',
-    borderRadius: '12px',
-    fontSize: '14px',
+    padding: "10px 24px",
+    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    color: "white",
+    border: "none",
+    borderRadius: "12px",
+    fontSize: "14px",
     fontWeight: 500,
-    cursor: 'pointer',
-    transition: 'all 0.3s ease',
+    cursor: "pointer",
+    transition: "all 0.3s ease",
   },
   errorContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '400px',
-    textAlign: 'center',
-    gap: '1rem',
-    background: 'white',
-    borderRadius: '20px',
-    padding: '48px 24px',
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: "400px",
+    textAlign: "center",
+    gap: "1rem",
+    background: "white",
+    borderRadius: "20px",
+    padding: "48px 24px",
   },
   errorIcon: {
-    fontSize: '64px',
+    fontSize: "64px",
   },
   retryBtn: {
-    padding: '10px 24px',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    color: 'white',
-    border: 'none',
-    borderRadius: '12px',
-    fontSize: '14px',
-    cursor: 'pointer',
+    padding: "10px 24px",
+    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    color: "white",
+    border: "none",
+    borderRadius: "12px",
+    fontSize: "14px",
+    cursor: "pointer",
   },
 };
 

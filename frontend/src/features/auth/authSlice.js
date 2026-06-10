@@ -29,7 +29,6 @@ const authSlice = createSlice({
     },
 
     logout: (state) => {
-      console.log("AUTH LOGOUT EXECUTED");
 
       state.user = null;
 

@@ -372,7 +372,7 @@ const registerUser = async (req, res) => {
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: true,
-      sameSite: "strict",
+      sameSite: none,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
@@ -541,6 +541,13 @@ const refreshAccessToken = async (req, res) => {
       });
     }
 
+    const exists = user.refreshTokens.some((rt) => rt.token === refreshToken);
+
+    if (!exists) {
+      return res.status(401).json({
+        message: "Invalid refresh token",
+      });
+    }
     const accessToken = generateAccessToken(user);
 
     res.cookie("token", accessToken, {

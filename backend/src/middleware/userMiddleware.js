@@ -8,10 +8,9 @@ const userMiddleware = async (req, res, next) => {
 
     const authHeader = req.headers.authorization;
 
-    const token =
-      req.cookies?.token ||
-      (authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null);
-
+    const token = authHeader?.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : req.cookies?.token;
     if (!token) {
       return res.status(401).json({
         message: "Token required",
