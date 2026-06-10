@@ -472,14 +472,14 @@ const loginUser = async (req, res) => {
     res.cookie("token", accessToken, {
       httpOnly: true,
       secure: false, // ⚠️ use true only in production (HTTPS)
-      sameSite: "strict",
+      sameSite: "none",
       maxAge: 200 * 60 * 1000, // 200 minutes
     });
 
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: false, // ⚠️ use true in production
-      sameSite: "strict",
+      sameSite: "none",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
@@ -542,17 +542,15 @@ const refreshAccessToken = async (req, res) => {
     }
 
     const accessToken = generateAccessToken(user);
+res.cookie("token", accessToken, {
+  httpOnly: true,
 
-    res.cookie("token", accessToken, {
-      httpOnly: true,
+  secure: false,
 
-      secure: process.env.NODE_ENV === "production",
+  sameSite: "none",
 
-      sameSite: "strict",
-
-      maxAge: 30 * 60 * 1000,
-    });
-
+  maxAge: 30 * 60 * 1000,
+});
     return res.status(200).json({
       accessToken,
     });
