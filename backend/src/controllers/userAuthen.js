@@ -548,6 +548,24 @@ const refreshAccessToken = async (req, res) => {
         message: "Invalid refresh token",
       });
     }
+
+    user.refreshTokens = user.refreshTokens.filter(
+      (rt) => rt.token !== refreshToken,
+    );
+
+    const newRefreshToken = generateRefreshToken(user);
+
+    user.refreshTokens.push({
+      token: newRefreshToken,
+
+      createdAt: new Date(),
+
+      ipAddress: req.ip,
+
+      userAgent: req.headers["user-agent"],
+    });
+
+    await user.save();
     const accessToken = generateAccessToken(user);
 
     res.cookie("token", accessToken, {
@@ -559,6 +577,22 @@ const refreshAccessToken = async (req, res) => {
 
       maxAge: 30 * 60 * 1000,
     });
+
+    res.cookie(
+      "refreshToken",
+
+      newRefreshToken,
+
+      {
+        httpOnly: true,
+
+        secure: true,
+
+        sameSite: "none",
+
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      },
+    );
 
     return res.status(200).json({
       accessToken,
