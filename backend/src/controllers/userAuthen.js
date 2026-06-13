@@ -549,39 +549,13 @@ const refreshAccessToken = async (req, res) => {
       });
     }
 
-    user.refreshTokens = user.refreshTokens.filter(
-      (rt) => rt.token !== refreshToken,
-    );
-
-    const newRefreshToken = generateRefreshToken(user);
-
-    user.refreshTokens.push({
-      token: newRefreshToken,
-
-      createdAt: new Date(),
-
-      ipAddress: req.ip,
-
-      userAgent: req.headers["user-agent"],
-    });
-
-    await user.save();
+    // ONLY CREATE NEW ACCESS TOKEN
     const accessToken = generateAccessToken(user);
 
-    res.cookie("token", accessToken, {
-      httpOnly: true,
-
-      secure: true,
-
-      sameSite: "none",
-
-      maxAge: 30 * 60 * 1000,
-    });
-
     res.cookie(
-      "refreshToken",
+      "token",
 
-      newRefreshToken,
+      accessToken,
 
       {
         httpOnly: true,
@@ -590,7 +564,7 @@ const refreshAccessToken = async (req, res) => {
 
         sameSite: "none",
 
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+        maxAge: 30 * 60 * 1000,
       },
     );
 
