@@ -10,10 +10,11 @@ import {
   deleteComment,
 } from "../../services/commentService";
 
-const CommentSection = ({ postId, onCommentAdded }) => {
+const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
   const [comments, setComments] = useState([]);
+  const targetCommentRef = useRef(null);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -22,99 +23,131 @@ const CommentSection = ({ postId, onCommentAdded }) => {
   const [expandedReplies, setExpandedReplies] = useState({});
   const [likedComments, setLikedComments] = useState({});
   const [localCommentCount, setLocalCommentCount] = useState(0);
-  
+
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMoreComments, setHasMoreComments] = useState(true);
   const [totalComments, setTotalComments] = useState(0);
   const [totalLoaded, setTotalLoaded] = useState(0);
-  
+
   const inputRef = useRef(null);
   const commentsEndRef = useRef(null);
   const observerRef = useRef(null);
   const lastCommentRef = useRef(null);
 
   // Fetch Comments with Pagination
- // Fetch Comments with Pagination
-const fetchComments = useCallback(async (page = 1, append = false) => {
-  try {
-    if (page === 1) {
-      setLoading(true);
-    } else {
-      setLoadingMore(true);
-    }
-    
-    const data = await getComments(postId, page, 20);
-    console.log("Fetched comments data:", data);
-    
-    let fetchedComments = Array.isArray(data.comments) ? data.comments : [];
-    const pagination = data.pagination || {};
-    
-    // Filter out soft-deleted comments
-    fetchedComments = fetchedComments.filter(comment => !comment.isDeleted);
-    
-    // Also filter out soft-deleted replies
-    fetchedComments = fetchedComments.map(comment => {
-      if (comment.replies && comment.replies.length > 0) {
-        comment.replies = comment.replies.filter(reply => !reply.isDeleted);
-      }
-      return comment;
-    });
-    
-    // 🔥 FIX: Use data.total or pagination.total
-    const total = data.total || pagination.total || fetchedComments.length;
-    const hasNext = pagination.hasNext || false;
-    
-    setComments(prev => append ? [...prev, ...fetchedComments] : fetchedComments);
-    setHasMoreComments(hasNext);
-    setTotalComments(total);
-    setTotalLoaded(prev => append ? prev + fetchedComments.length : fetchedComments.length);
-    setCurrentPage(page);
-    
-    // Track which comments are liked by current user
-    const liked = {};
-    fetchedComments.forEach((comment) => {
-      if (comment.isLikedByUser) {
-        liked[comment._id] = true;
-      }
-      comment.replies?.forEach((reply) => {
-        if (reply.isLikedByUser) {
-          liked[reply._id] = true;
+  // Fetch Comments with Pagination
+  const fetchComments = useCallback(
+    async (page = 1, append = false) => {
+      try {
+        if (page === 1) {
+          setLoading(true);
+        } else {
+          setLoadingMore(true);
         }
-      });
-    });
-    setLikedComments(prev => append ? { ...prev, ...liked } : liked);
-    
-  } catch (error) {
-    console.log("Error fetching comments:", error);
-  } finally {
-    setLoading(false);
-    setLoadingMore(false);
+
+        const data = await getComments(
+  postId,
+  page,
+  20,
+  {
+    targetComment,
+    prioritizeMine: !targetComment,
   }
-}, [postId]);
+);
+        console.log("Fetched comments data:", data);
+
+        let fetchedComments = Array.isArray(data.comments) ? data.comments : [];
+        const pagination = data.pagination || {};
+
+        // Filter out soft-deleted comments
+        fetchedComments = fetchedComments.filter(
+          (comment) => !comment.isDeleted,
+        );
+
+        // Also filter out soft-deleted replies
+        fetchedComments = fetchedComments.map((comment) => {
+          if (comment.replies && comment.replies.length > 0) {
+            comment.replies = comment.replies.filter(
+              (reply) => !reply.isDeleted,
+            );
+          }
+          return comment;
+        });
+
+        // 🔥 FIX: Use data.total or pagination.total
+        const total = data.total || pagination.total || fetchedComments.length;
+        const hasNext = pagination.hasNext || false;
+
+        setComments((prev) =>
+          append ? [...prev, ...fetchedComments] : fetchedComments,
+        );
+        setHasMoreComments(hasNext);
+        setTotalComments(total);
+        setTotalLoaded((prev) =>
+          append ? prev + fetchedComments.length : fetchedComments.length,
+        );
+        setCurrentPage(page);
+
+        // Track which comments are liked by current user
+        const liked = {};
+        fetchedComments.forEach((comment) => {
+          if (comment.isLikedByUser) {
+            liked[comment._id] = true;
+          }
+          comment.replies?.forEach((reply) => {
+            if (reply.isLikedByUser) {
+              liked[reply._id] = true;
+            }
+          });
+        });
+        setLikedComments((prev) => (append ? { ...prev, ...liked } : liked));
+      } catch (error) {
+        console.log("Error fetching comments:", error);
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [postId],
+  );
 
   // Infinite scroll observer - FIXED
-  const lastCommentElementRef = useCallback((node) => {
-    if (loading || loadingMore) return;
-    if (observerRef.current) observerRef.current.disconnect();
-    
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMoreComments) {
-          console.log("Loading more comments... Page:", currentPage + 1);
-          fetchComments(currentPage + 1, true);
-        }
-      },
-      { threshold: 0.1, rootMargin: "100px" }
-    );
-    
-    if (node) observerRef.current.observe(node);
-  }, [loading, loadingMore, hasMoreComments, currentPage, fetchComments]);
+  const lastCommentElementRef = useCallback(
+    (node) => {
+      if (loading || loadingMore) return;
+      if (observerRef.current) observerRef.current.disconnect();
+
+      observerRef.current = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting && hasMoreComments) {
+            console.log("Loading more comments... Page:", currentPage + 1);
+            fetchComments(currentPage + 1, true);
+          }
+        },
+        { threshold: 0.1, rootMargin: "100px" },
+      );
+
+      if (node) observerRef.current.observe(node);
+    },
+    [loading, loadingMore, hasMoreComments, currentPage, fetchComments],
+  );
 
   useEffect(() => {
     fetchComments(1, false);
   }, [postId, fetchComments]);
 
+  useEffect(() => {
+  if (!targetComment) return;
+
+  setTimeout(() => {
+    targetCommentRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+  }, 600);
+
+}, [comments, targetComment]);
   // Auto focus input when replying
   useEffect(() => {
     if (replyingTo && inputRef.current) {
@@ -143,10 +176,10 @@ const fetchComments = useCallback(async (page = 1, append = false) => {
 
       setContent("");
       setReplyingTo(null);
-      
+
       // Reset to first page to see new comment
       await fetchComments(1, false);
-      
+
       if (onCommentAdded) {
         onCommentAdded(1);
       }
@@ -167,7 +200,7 @@ const fetchComments = useCallback(async (page = 1, append = false) => {
     setContent("");
     inputRef.current?.focus();
   };
-  
+
   // Handle like/unlike comment
   const handleLikeComment = async (commentId) => {
     try {
@@ -239,7 +272,7 @@ const fetchComments = useCallback(async (page = 1, append = false) => {
   const handleDelete = async (commentId) => {
     try {
       let deletedCount = 1;
-      
+
       for (const comment of comments) {
         if (comment._id === commentId) {
           deletedCount = 1;
@@ -248,15 +281,18 @@ const fetchComments = useCallback(async (page = 1, append = false) => {
           }
           break;
         }
-        if (comment.replies && comment.replies.find(r => r._id === commentId)) {
+        if (
+          comment.replies &&
+          comment.replies.find((r) => r._id === commentId)
+        ) {
           deletedCount = 1;
           break;
         }
       }
-      
+
       await deleteComment(commentId);
       await fetchComments(1, false); // Reset to first page after delete
-      
+
       if (onCommentAdded) {
         onCommentAdded(-deletedCount);
       }
@@ -461,7 +497,13 @@ const fetchComments = useCallback(async (page = 1, append = false) => {
               return (
                 <div
                   key={comment._id}
-                  ref={isLastComment ? lastCommentElementRef : null}
+                  ref={
+                    comment._id === targetComment
+                      ? targetCommentRef
+                      : isLastComment
+                        ? lastCommentElementRef
+                        : null
+                  }
                   className={`comment-item ${comment.isTemp ? "temp-comment" : ""}`}
                   style={{ animationDelay: `${index * 0.05}s` }}
                 >
@@ -501,7 +543,9 @@ const fetchComments = useCallback(async (page = 1, append = false) => {
                         </span>
                         {comment.author?.role && (
                           <span className="author-badge">
-                            {comment.author.role.name === "Student" ? "🎓" : "👨‍🏫"}
+                            {comment.author.role.name === "Student"
+                              ? "🎓"
+                              : "👨‍🏫"}
                           </span>
                         )}
                         <span className="comment-time">
@@ -685,7 +729,9 @@ const fetchComments = useCallback(async (page = 1, append = false) => {
 
                                       <button
                                         className={`like-btn ${likedComments[reply._id] ? "liked" : ""}`}
-                                        onClick={() => handleLikeComment(reply._id)}
+                                        onClick={() =>
+                                          handleLikeComment(reply._id)
+                                        }
                                       >
                                         {likedComments[reply._id]
                                           ? "❤️ Liked"
@@ -695,7 +741,9 @@ const fetchComments = useCallback(async (page = 1, append = false) => {
                                       {reply.author?._id === user?._id && (
                                         <button
                                           className="delete-btn"
-                                          onClick={() => handleDelete(reply._id)}
+                                          onClick={() =>
+                                            handleDelete(reply._id)
+                                          }
                                           title="Delete reply"
                                         >
                                           <svg
@@ -708,8 +756,18 @@ const fetchComments = useCallback(async (page = 1, append = false) => {
                                           >
                                             <polyline points="3 6 5 6 21 6"></polyline>
                                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                            <line x1="10" y1="11" x2="10" y2="17"></line>
-                                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                                            <line
+                                              x1="10"
+                                              y1="11"
+                                              x2="10"
+                                              y2="17"
+                                            ></line>
+                                            <line
+                                              x1="14"
+                                              y1="11"
+                                              x2="14"
+                                              y2="17"
+                                            ></line>
                                           </svg>
                                           Delete
                                         </button>
@@ -727,7 +785,7 @@ const fetchComments = useCallback(async (page = 1, append = false) => {
                 </div>
               );
             })}
-            
+
             {/* Loading more indicator */}
             {loadingMore && (
               <div className="loading-more-comments">
@@ -735,7 +793,7 @@ const fetchComments = useCallback(async (page = 1, append = false) => {
                 <p>Loading more comments...</p>
               </div>
             )}
-            
+
             {/* End of comments */}
             {!hasMoreComments && comments.length > 0 && (
               <div className="end-of-comments">

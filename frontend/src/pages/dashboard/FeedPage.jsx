@@ -6,7 +6,9 @@ import { searchUsers } from "../../services/searchService";
 import debounce from "lodash/debounce";
 import { useNavigate } from "react-router";
 
+import { useLocation } from "react-router";
 const FeedPage = () => {
+
   const [posts, setPosts] = useState([]);
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(true);
@@ -80,6 +82,8 @@ const FeedPage = () => {
     fetchPosts();
   }, [refreshKey]);
 
+  
+ 
   // Handle click outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -392,7 +396,9 @@ const FeedPage = () => {
                   animationDelay: `${index * 0.05}s`,
                 }}
               >
-                <PostCard post={post} onImageClick={handleImageClick} />
+                <div id={`post-${post._id}`}>
+                  <PostCard post={post} onImageClick={handleImageClick} />
+                </div>
               </div>
             ))
           )}

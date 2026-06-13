@@ -91,12 +91,17 @@ const notificationSchema = new mongoose.Schema(
       default: null,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Indexes for fast fetching
 notificationSchema.index({ userId: 1, createdAt: -1 });
 notificationSchema.index({ userId: 1, isRead: 1 });
-notificationSchema.index({ collegeId: 1, visibility: 1, role: 1, createdAt: -1 });
+notificationSchema.index({
+  collegeId: 1,
+  visibility: 1,
+  role: 1,
+  createdAt: -1,
+});
 
 module.exports = mongoose.model("Notification", notificationSchema);

@@ -9,6 +9,7 @@ import DashboardLayout from "./layouts/DashboardLayout";
 
 import DashboardHome from "./pages/dashboard/DashboardHome";
 import FeedPage from "./pages/dashboard/FeedPage";
+import SinglePostPage from "./pages/dashboard/SinglePostPage";
 import MarketplacePage from "./pages/dashboard/MarketplacePage";
 import ChatPage from "./pages/dashboard/ChatPage";
 import ConfessionsPage from "./pages/dashboard/ConfessionsPage";
@@ -57,7 +58,14 @@ const App = () => {
             </ModuleProtectedRoute>
           }
         />
-
+        <Route
+          path="post/:id"
+          element={
+            <ModuleProtectedRoute moduleName="feed">
+              <SinglePostPage />
+            </ModuleProtectedRoute>
+          }
+        />
         <Route
           path="profile"
           element={

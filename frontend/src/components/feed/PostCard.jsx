@@ -4,10 +4,18 @@ import { reactToPost, removeReaction } from "../../services/reactionService";
 import CommentSection from "./CommentSection";
 import { savePost, unsavePost } from "../../services/feedService";
 
-const PostCard = memo(({ post, onImageClick, onUnsave }) => {
+const PostCard = memo(
+({
+  post,
+  onImageClick,
+  onUnsave,
+  forceShowComments = false,
+  targetComment,
+}) => {
   const navigate = useNavigate();
   const [liked, setLiked] = useState(!!post.userReaction);
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] =
+useState(forceShowComments);
   const [likesCount, setLikesCount] = useState(post.reactionsCount || 0);
   const [commentsCount, setCommentsCount] = useState(post.commentCount || 0);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -392,10 +400,11 @@ const PostCard = memo(({ post, onImageClick, onUnsave }) => {
       {/* Comments Section */}
       {showComments && (
         <div className="comments-wrapper">
-          <CommentSection
-            postId={post._id}
-            onCommentAdded={handleCommentUpdate}
-          />
+         <CommentSection
+  postId={post._id}
+  onCommentAdded={handleCommentUpdate}
+  targetComment={targetComment}
+/>
         </div>
       )}
 

@@ -1,49 +1,51 @@
 import api from "../api/axios";
 
 // ✅ Updated with pagination
-export const getComments = async (postId, page = 1, limit = 20) => {
-  const response = await api.get(
-    `/user/posts/${postId}/comments?page=${page}&limit=${limit}`
-  );
+export const getComments = async (
+  postId,
+  page = 1,
+  limit = 20,
+  options = {},
+) => {
+  const { targetComment, prioritizeMine } = options;
+
+  const response = await api.get(`/user/posts/${postId}/comments`, {
+    params: {
+      page,
+      limit,
+      targetComment,
+      prioritizeMine,
+    },
+  });
+
   return response.data;
 };
-
 export const addComment = async (postId, content) => {
-  const response = await api.post(
-    `/user/posts/${postId}/comments`,
-    { content }
-  );
+  const response = await api.post(`/user/posts/${postId}/comments`, {
+    content,
+  });
   return response.data;
 };
 
 export const replyToComment = async (commentId, content, replyToUser) => {
-  const response = await api.post(
-    `/user/comments/${commentId}/reply`,
-    {
-      content,
-      replyToUser,
-    }
-  );
+  const response = await api.post(`/user/comments/${commentId}/reply`, {
+    content,
+    replyToUser,
+  });
   return response.data;
 };
 
 export const likeComment = async (commentId) => {
-  const response = await api.post(
-    `/user/comments/${commentId}/like`
-  );
+  const response = await api.post(`/user/comments/${commentId}/like`);
   return response.data;
 };
 
 export const unlikeComment = async (commentId) => {
-  const response = await api.delete(
-    `/user/comments/${commentId}/like`
-  );
+  const response = await api.delete(`/user/comments/${commentId}/like`);
   return response.data;
 };
 
 export const deleteComment = async (commentId) => {
-  const response = await api.delete(
-    `/user/comments/${commentId}`
-  );
+  const response = await api.delete(`/user/comments/${commentId}`);
   return response.data;
 };

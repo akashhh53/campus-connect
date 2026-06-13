@@ -782,7 +782,7 @@ const addComment = async (req, res) => {
         type: "comment",
         targetId: post._id,
         targetModel: "Post",
-        link: "/dashboard/feed",
+        link: `/dashboard/post/${comment.postId}?comment=${comment._id}`,
         collegeId: user.collegeId,
         module: "feed",
         visibility: "campus",
@@ -829,17 +829,19 @@ const getComments = async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 20;
     const skip = (page - 1) * limit;
+    const targetComment = req.query.targetComment;
 
+    const prioritizeMine = req.query.prioritizeMine === "true";
     // ROOT COMMENTS
-    const comments = await Comment.find({
-      postId,
-      isDeleted: false,
-      parentCommentId: null,
-    })
-      .populate("author", "name profilePicture role")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+    let comments = await Comment.find({
+  postId,
+  isDeleted: false,
+  parentCommentId: null,
+})
+  .populate("author", "name profilePicture role")
+  .sort({ createdAt: -1 })
+  .skip(skip)
+  .limit(limit);
 
     const commentsWithReplies = await Promise.all(
       comments.map(async (comment) => {
@@ -893,6 +895,35 @@ const getComments = async (req, res) => {
       }),
     );
 
+    let finalComments = [...commentsWithReplies];
+
+// CASE 1 → notification
+if (targetComment) {
+  finalComments.sort((a, b) => {
+    if (a._id.toString() === targetComment) return -1;
+    if (b._id.toString() === targetComment) return 1;
+    return 0;
+  });
+}
+
+// CASE 2 → normal revisit
+else if (prioritizeMine) {
+  finalComments.sort((a, b) => {
+    const aMine =
+      a.author?._id?.toString() ===
+      user._id.toString();
+
+    const bMine =
+      b.author?._id?.toString() ===
+      user._id.toString();
+
+    if (aMine && !bMine) return -1;
+
+    if (!aMine && bMine) return 1;
+
+    return 0;
+  });
+}
     // 🔥 FIX 1: Count root comments
     const rootCommentsCount = await Comment.countDocuments({
       postId,
@@ -916,7 +947,7 @@ const getComments = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      comments: commentsWithReplies,
+     comments: finalComments,
       count: commentsWithReplies.length,
       total: totalCommentsWithReplies, // 🔥 FIXED: Now includes replies
       rootCommentsCount: rootCommentsCount,
@@ -1025,7 +1056,7 @@ const replyToComment = async (req, res) => {
         type: "reply",
         targetId: reply._id,
         targetModel: "Comment",
-        link: "/dashboard/feed",
+        link: `/dashboard/post/${parentComment.postId}?comment=${reply._id}`,
         collegeId: user.collegeId,
         module: "feed",
         visibility: "campus",
@@ -1275,7 +1306,7 @@ const likeComment = async (req, res) => {
 
         targetModel: "Comment",
 
-        link: "/dashboard/feed",
+        link: `/dashboard/post/${comment.postId}?comment=${comment._id}`,
 
         collegeId: user.collegeId,
 
@@ -1457,7 +1488,7 @@ const addPostReaction = async (req, res) => {
         type: "post_like",
         targetId: post._id,
         targetModel: "Post",
-        link: "/dashboard/feed",
+        link: `/dashboard/post/${post._id}`,
         collegeId: user.collegeId,
         module: "feed",
         visibility: "campus",
@@ -1744,6 +1775,93 @@ const getNotifications = async (req, res) => {
   }
 };
 
+//api 30
+const markNotificationRead = async (req, res) => {
+  try {
+    const user = req.user;
+
+    const notification = await Notification.findOne({
+      _id: req.params.id,
+
+      $or: [
+        { userId: user._id },
+
+        {
+          userId: null,
+        },
+      ],
+    });
+
+    if (!notification) {
+      return res.status(404).json({
+        success: false,
+        message: "Notification not found",
+      });
+    }
+
+    notification.isRead = true;
+
+    await notification.save();
+
+    return res.json({
+      success: true,
+      message: "Notification marked as read",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+//api 31
+const markAllNotificationsRead = async (req, res) => {
+  try {
+    const user = req.user;
+
+    await Notification.updateMany(
+      {
+        $or: [
+          {
+            userId: user._id,
+          },
+          {
+            userId: null,
+
+            collegeId: {
+              $in: [null, user.collegeId],
+            },
+
+            role: {
+              $in: [user.role?.name, "all"],
+            },
+          },
+        ],
+
+        isRead: false,
+      },
+
+      {
+        $set: {
+          isRead: true,
+        },
+      },
+    );
+
+    return res.json({
+      success: true,
+
+      message: "All notifications marked as read",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+
+      message: error.message,
+    });
+  }
+};
 // ===================follow===================
 // API #37: Follow a user
 const followUser = async (req, res) => {
@@ -2742,7 +2860,7 @@ const getSavedPostsCount = async (req, res) => {
 const getSavedPosts = async (req, res) => {
   try {
     const user = req.user;
-    
+
     // Get page and limit from query params (default: page 1, limit 10)
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -2770,9 +2888,7 @@ const getSavedPosts = async (req, res) => {
       .lean();
 
     // Extract posts from saved references
-    const posts = saved
-      .map((x) => x.post)
-      .filter(Boolean);
+    const posts = saved.map((x) => x.post).filter(Boolean);
 
     // Calculate pagination info
     const hasNext = skip + limit < totalSaved;
@@ -2792,7 +2908,6 @@ const getSavedPosts = async (req, res) => {
       },
       count: posts.length,
     });
-
   } catch (error) {
     console.log(error);
     return res.status(500).json({
@@ -2831,6 +2946,8 @@ module.exports = {
 
   // Notifications
   getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
 
   //follow
   followUser,

@@ -28,3 +28,9 @@ export const unsavePost = async (postId) => {
 
   return response.data;
 };
+
+export const getPostById = async (id) => {
+  const response = await axiosInstance.get(`/user/posts/${id}`);
+
+  return response.data;
+};

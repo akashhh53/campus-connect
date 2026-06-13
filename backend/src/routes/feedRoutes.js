@@ -24,6 +24,8 @@ const {
   getPostReactions,
   getCommentReactions,
   getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
   followUser,
   unfollowUser,
   getFollowers,
@@ -96,6 +98,10 @@ router.get("/comments/:commentId/reactions", getCommentReactions); // API #24
 //report post skipped api #25 and many more till 28 skipped
 
 router.get("/notifications", getNotifications); // API #29
+
+router.put("/notifications/:id/read", markNotificationRead);
+
+router.put("/notifications/read-all", markAllNotificationsRead);
 
 //skipped  these apis for now
 // 30	Get Unread Count	GET	/user/notifications/unread-count
