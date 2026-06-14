@@ -11,14 +11,12 @@ const user =
     : null;
 
 const socket = io(
-  "http://localhost:3000",
+  import.meta.env.VITE_API_BASE_URL,
   {
     withCredentials: true,
-
     auth: {
       userId: user?.user?._id,
     },
   }
 );
-
 export default socket;
