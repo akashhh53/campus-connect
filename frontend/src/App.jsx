@@ -1,4 +1,6 @@
 import { Routes, Route, Navigate } from "react-router";
+import socket from "./socket/socket";
+import { useEffect } from "react";
 
 import LoginPage from "./pages/LoginPage";
 
@@ -27,6 +29,46 @@ import SavedPostsPage from "./pages/profile/SavedPostsPage";
 import UserProfilePage from "./pages/dashboard/UserProfilePage";
 
 const App = () => {
+  useEffect(() => {
+  if (!socket.connected) {
+    socket.connect();
+  }
+
+  const handleConnect = () => {
+    console.log(
+      "Connected:",
+      socket.id
+    );
+  };
+
+  const handleWelcome = (
+    msg
+  ) => {
+    console.log(msg);
+  };
+
+  socket.on(
+    "connect",
+    handleConnect
+  );
+
+  socket.on(
+    "welcome",
+    handleWelcome
+  );
+
+  return () => {
+    socket.off(
+      "connect",
+      handleConnect
+    );
+
+    socket.off(
+      "welcome",
+      handleWelcome
+    );
+  };
+}, []);
   return (
     <Routes>
       {/* FIXED ROOT REDIRECT */}

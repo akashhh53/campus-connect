@@ -34,3 +34,13 @@ export const getPostById = async (id) => {
 
   return response.data;
 };
+
+export const deletePost =
+async (postId) => {
+  const response =
+    await axiosInstance.delete(
+      `/user/posts/${postId}`
+    );
+
+  return response.data;
+};

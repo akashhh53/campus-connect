@@ -5,7 +5,7 @@ const Reaction = require("../models/feed&Social/reaction"); // lowercase r
 const Notification = require("../models/activityLog/notification");
 const Follow = require("../models/feed&Social/follow");
 const Block = require("../models/feed&Social/block");
-const { createNotification } = require("../utils/notificationHelper");
+const { createNotification, deleteNotification, deleteNotificationsByPost } = require("../utils/notificationHelper");
 const SavedPost = require("../models/feed&Social/savedPost");
 
 //update profile
@@ -279,7 +279,7 @@ const getPostById = async (req, res) => {
       "name email profilePicture role",
     );
 
-    if (!post) {
+    if (!post || post.isDeleted) {
       return res.status(404).json({
         success: false,
         message: "Post not found",
@@ -471,9 +471,19 @@ const deletePost = async (req, res) => {
 
     post.isDeleted = true;
     await post.save();
+await deleteNotificationsByPost(
+  id
+);
 
-    await Comment.updateMany({ postId: id }, { isDeleted: true });
-
+await Comment.updateMany(
+  {
+    postId: id,
+  },
+  {
+    isDeleted: true,
+  }
+);
+   
     res.json({
       success: true,
       message: "Post deleted successfully",
@@ -1188,7 +1198,29 @@ const deleteComment = async (req, res) => {
     comment.isDeleted = true;
 
     await comment.save();
+const post =
+  await Post.findById(
+    comment.postId
+  );
 
+if (
+  post?.author?.toString() !==
+  user._id.toString()
+) {
+  await deleteNotification({
+    userId:
+      post.author,
+
+    actorId:
+      user._id,
+
+    type:
+      "comment",
+
+    targetId:
+      post._id,
+  });
+}
     // if root comment → delete replies too
     if (!comment.parentCommentId) {
       deletedCount += await Comment.countDocuments({
@@ -1387,6 +1419,19 @@ const unlikeComment = async (req, res) => {
 
     // Delete the reaction
     await reaction.deleteOne();
+    await deleteNotification({
+  userId:
+    comment.author,
+
+  actorId:
+    user._id,
+
+  type:
+    "comment_like",
+
+  targetId:
+    comment._id,
+});
 
     res.json({
       success: true,
@@ -1541,6 +1586,24 @@ const removePostReaction = async (req, res) => {
     // Delete the reaction
     await reaction.deleteOne();
 
+    const post =
+  await Post.findById(
+    postId
+  );
+
+await deleteNotification({
+  userId:
+    post.author,
+
+  actorId:
+    user._id,
+
+  type:
+    "post_like",
+
+  targetId:
+    postId,
+});
     res.json({
       success: true,
       message: "Reaction removed successfully",
@@ -1980,6 +2043,20 @@ const unfollowUser = async (req, res) => {
     // Delete the follow
     await follow.deleteOne();
 
+
+    await deleteNotification({
+  userId:
+    userId,
+
+  actorId:
+    user._id,
+
+  type:
+    "follow",
+
+  targetId:
+    user._id,
+});
     res.json({
       success: true,
       message: "Unfollowed successfully",

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { logoutUser } from "../services/authService";
 import { getNotifications, markRead } from "../services/notificationService";
 import { useNavigate } from "react-router";
-
+import socket from "../socket/socket";
 const Topbar = () => {
   const dispatch = useDispatch();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -19,9 +19,9 @@ const Topbar = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  
+
   const navigate = useNavigate();
-  
+
   // Redux user
   const reduxUser = useSelector((state) => state.auth.user);
 
@@ -40,28 +40,39 @@ const Topbar = () => {
     }
   };
 
-  const handleNotificationClick = async (notification) => {
-    try {
-      if (!notification.isRead) {
-        await markRead(notification._id);
-        setNotifications((prev) =>
-          prev.map((n) =>
-            n._id === notification._id ? { ...n, isRead: true } : n
-          )
-        );
-        setNotificationCount((prev) => Math.max(0, prev - 1));
-      }
+ const handleNotificationClick = async (notification) => {
+  try {
+    if (!notification.isRead) {
+      await markRead(notification._id);
 
-      setNotificationsOpen(false);
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n._id === notification._id
+            ? {
+                ...n,
+                isRead: true,
+              }
+            : n
+        )
+      );
 
-      if (notification.link) {
-        navigate(notification.link);
-      }
-    } catch (err) {
-      console.log(err);
+   setNotificationCount(
+  (prev) => prev + 1
+);
+      await fetchNotificationCount();
     }
-  };
 
+    setNotificationsOpen(false);
+
+    if (notification.link) {
+      navigate(
+        notification.link
+      );
+    }
+  } catch (err) {
+    console.log(err);
+  }
+};
   const fetchNotifications = async (pageNum = 1, isLoadMore = false) => {
     try {
       if (isLoadMore) {
@@ -69,16 +80,16 @@ const Topbar = () => {
       } else {
         setLoadingNotifications(true);
       }
-      
+
       const data = await getNotifications(pageNum, 15);
       const newNotifications = data.notifications || [];
-      
+
       if (isLoadMore) {
-        setNotifications(prev => [...prev, ...newNotifications]);
+        setNotifications((prev) => [...prev, ...newNotifications]);
       } else {
         setNotifications(newNotifications);
       }
-      
+
       setHasMore(newNotifications.length === 15);
       setPage(pageNum);
     } catch (err) {
@@ -92,8 +103,9 @@ const Topbar = () => {
   // Scroll pagination handler
   const handleScroll = useCallback(() => {
     if (!notificationsListRef.current || loadingMore || !hasMore) return;
-    
-    const { scrollTop, scrollHeight, clientHeight } = notificationsListRef.current;
+
+    const { scrollTop, scrollHeight, clientHeight } =
+      notificationsListRef.current;
     if (scrollTop + clientHeight >= scrollHeight - 50) {
       fetchNotifications(page + 1, true);
     }
@@ -102,15 +114,76 @@ const Topbar = () => {
   useEffect(() => {
     const listElement = notificationsListRef.current;
     if (listElement && notificationsOpen) {
-      listElement.addEventListener('scroll', handleScroll);
-      return () => listElement.removeEventListener('scroll', handleScroll);
+      listElement.addEventListener("scroll", handleScroll);
+      return () => listElement.removeEventListener("scroll", handleScroll);
     }
   }, [notificationsOpen, handleScroll]);
 
-  useEffect(() => {
-    fetchNotificationCount();
-  }, []);
+ useEffect(() => {
+  fetchNotificationCount();
 
+  const handleNotification =
+    (notification) => {
+      console.log(
+        "Realtime:",
+        notification
+      );
+
+      setNotifications(
+        (prev) => [
+          notification,
+          ...prev,
+        ]
+      );
+
+      setNotificationCount(
+        (prev) =>
+          prev + 1
+      );
+    };
+
+  const handleRemove =
+    (notificationId) => {
+      setNotifications(
+        (prev) =>
+          prev.filter(
+            (n) =>
+              n._id !==
+              notificationId
+          )
+      );
+
+      setNotificationCount(
+        (prev) =>
+          Math.max(
+            0,
+            prev - 1
+          )
+      );
+    };
+
+  socket.on(
+    "new_notification",
+    handleNotification
+  );
+
+  socket.on(
+    "notification_removed",
+    handleRemove
+  );
+
+  return () => {
+    socket.off(
+      "new_notification",
+      handleNotification
+    );
+
+    socket.off(
+      "notification_removed",
+      handleRemove
+    );
+  };
+}, []);
   const handleLogout = async () => {
     try {
       await logoutUser();
@@ -127,7 +200,10 @@ const Topbar = () => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
       }
-      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(event.target)
+      ) {
         setNotificationsOpen(false);
         setPage(1);
         setHasMore(true);
@@ -159,14 +235,14 @@ const Topbar = () => {
       hour: 3600,
       minute: 60,
     };
-    
+
     for (const [unit, secondsInUnit] of Object.entries(intervals)) {
       const interval = Math.floor(seconds / secondsInUnit);
       if (interval >= 1) {
-        return `${interval} ${unit}${interval === 1 ? '' : 's'} ago`;
+        return `${interval} ${unit}${interval === 1 ? "" : "s"} ago`;
       }
     }
-    return 'just now';
+    return "just now";
   };
 
   return (
@@ -174,7 +250,8 @@ const Topbar = () => {
       style={{
         height: "70px",
         background: "#ffffff",
-        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+        boxShadow:
+          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
         position: "sticky",
         top: 0,
         zIndex: 1000,
@@ -290,7 +367,8 @@ const Topbar = () => {
                     position: "absolute",
                     top: "-4px",
                     right: "-4px",
-                    background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                    background:
+                      "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
                     color: "white",
                     width: "20px",
                     height: "20px",
@@ -319,7 +397,8 @@ const Topbar = () => {
                   maxHeight: "520px",
                   background: "white",
                   borderRadius: "16px",
-                  boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
+                  boxShadow:
+                    "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
                   border: "1px solid #e5e7eb",
                   zIndex: 999,
                   overflow: "hidden",
@@ -468,16 +547,23 @@ const Topbar = () => {
                           style={{
                             padding: "16px 20px",
                             background: n.isRead ? "white" : "#eff6ff",
-                            borderBottom: index === notifications.length - 1 ? "none" : "1px solid #f3f4f6",
+                            borderBottom:
+                              index === notifications.length - 1
+                                ? "none"
+                                : "1px solid #f3f4f6",
                             cursor: "pointer",
                             transition: "all 0.2s ease",
                             position: "relative",
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = n.isRead ? "#f9fafb" : "#dbeafe";
+                            e.currentTarget.style.backgroundColor = n.isRead
+                              ? "#f9fafb"
+                              : "#dbeafe";
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = n.isRead ? "white" : "#eff6ff";
+                            e.currentTarget.style.backgroundColor = n.isRead
+                              ? "white"
+                              : "#eff6ff";
                           }}
                         >
                           {!n.isRead && (
@@ -525,31 +611,35 @@ const Topbar = () => {
                           </div>
                         </div>
                       ))}
-                      
+
                       {/* Loading more indicator */}
                       {loadingMore && (
                         <div style={{ padding: "20px", textAlign: "center" }}>
-                          <div style={{ 
-                            display: "inline-block", 
-                            width: "24px", 
-                            height: "24px", 
-                            border: "2px solid #e5e7eb", 
-                            borderTopColor: "#6366f1", 
-                            borderRadius: "50%", 
-                            animation: "spin 0.6s linear infinite" 
-                          }} />
+                          <div
+                            style={{
+                              display: "inline-block",
+                              width: "24px",
+                              height: "24px",
+                              border: "2px solid #e5e7eb",
+                              borderTopColor: "#6366f1",
+                              borderRadius: "50%",
+                              animation: "spin 0.6s linear infinite",
+                            }}
+                          />
                         </div>
                       )}
-                      
+
                       {/* No more notifications */}
                       {!hasMore && notifications.length > 0 && (
-                        <div style={{ 
-                          padding: "16px", 
-                          textAlign: "center", 
-                          color: "#9ca3af", 
-                          fontSize: "12px",
-                          borderTop: "1px solid #f3f4f6"
-                        }}>
+                        <div
+                          style={{
+                            padding: "16px",
+                            textAlign: "center",
+                            color: "#9ca3af",
+                            fontSize: "12px",
+                            borderTop: "1px solid #f3f4f6",
+                          }}
+                        >
                           You're all caught up! 🎉
                         </div>
                       )}
@@ -596,7 +686,8 @@ const Topbar = () => {
                   width: "42px",
                   height: "42px",
                   borderRadius: "50%",
-                  background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+                  background:
+                    "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -667,7 +758,8 @@ const Topbar = () => {
                   width: "260px",
                   background: "white",
                   borderRadius: "14px",
-                  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+                  boxShadow:
+                    "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
                   border: "1px solid #e5e7eb",
                   overflow: "hidden",
                   animation: "slideDown 0.2s ease",
@@ -730,7 +822,14 @@ const Topbar = () => {
                     e.currentTarget.style.backgroundColor = "transparent";
                   }}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                     <circle cx="12" cy="7" r="4" />
                   </svg>
@@ -763,7 +862,14 @@ const Topbar = () => {
                     e.currentTarget.style.backgroundColor = "transparent";
                   }}
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
                     <circle cx="12" cy="12" r="3" />
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
                   </svg>

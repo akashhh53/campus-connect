@@ -1,6 +1,10 @@
-const express = require("express");
-const app = express();
+const { setIO } = require("../socket");
 
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const app = express();
+const server = http.createServer(app);
 require("dotenv").config();
 
 const main = require("./config/db");
@@ -18,7 +22,41 @@ app.use(
     credentials: true,
   })
 );
+const io = new Server(server, {
+  cors: {
+    origin: [
+      process.env.FRONTEND_URL,
+      "http://localhost:5173",
+    ],
+    credentials: true,
+  },
+});
+setIO(io);
+io.on("connection", (socket) => {
+  
+  const userId =
+    socket.handshake.auth?.userId;
 
+  if (userId) {
+    socket.join(userId);
+
+    console.log(
+      `User ${userId} joined`
+    );
+  }
+
+  socket.emit(
+    "welcome",
+    "Socket connected successfully"
+  );
+
+  socket.on("disconnect", () => {
+    console.log(
+      "Disconnected:",
+      socket.id
+    );
+  });
+});
 // Middleware
 app.use(express.json());
 
@@ -34,7 +72,7 @@ const InitializeConnection = async () => {
 
     console.log("Connected to MongoDB and Redis");
 
-    app.listen(process.env.PORT, () => {
+    server.listen(process.env.PORT, () => {
       console.log(`Server is running on port ${process.env.PORT}`);
     });
   } catch (err) {
