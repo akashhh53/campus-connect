@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const libraryTransactionSchema = new mongoose.Schema(
   {
@@ -39,4 +39,4 @@ const libraryTransactionSchema = new mongoose.Schema(
 // Indexes
 libraryTransactionSchema.index({ itemId: 1, borrower: 1, status: 1 });
 
-export default mongoose.model("LibraryTransaction", libraryTransactionSchema);
+module.exports = mongoose.model("LibraryTransaction", libraryTransactionSchema);

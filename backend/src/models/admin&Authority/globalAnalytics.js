@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const globalAnalyticsSchema = new mongoose.Schema(
   {
@@ -37,4 +37,4 @@ const globalAnalyticsSchema = new mongoose.Schema(
 // Index
 globalAnalyticsSchema.index({ metric: 1, visibility: 1 });
 
-export default mongoose.model("GlobalAnalytics", globalAnalyticsSchema);
+module.exports = mongoose.model("GlobalAnalytics", globalAnalyticsSchema);

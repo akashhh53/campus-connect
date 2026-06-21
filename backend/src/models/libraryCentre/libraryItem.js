@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const libraryItemSchema = new mongoose.Schema(
   {
@@ -61,4 +61,4 @@ const libraryItemSchema = new mongoose.Schema(
 // Indexes
 libraryItemSchema.index({ collegeId: 1, isDeleted: 1, title: 1 });
 
-export default mongoose.model("LibraryItem", libraryItemSchema);
+module.exports = mongoose.model("LibraryItem", libraryItemSchema);

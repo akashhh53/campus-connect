@@ -5,7 +5,8 @@ import { logoutUser } from "../services/authService";
 import { getNotifications, markRead } from "../services/notificationService";
 import { useNavigate } from "react-router";
 import socket from "../socket/socket";
-const Topbar = () => {
+
+const Topbar = ({ chatUnread = 0 }) => {
   const dispatch = useDispatch();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -40,39 +41,36 @@ const Topbar = () => {
     }
   };
 
- const handleNotificationClick = async (notification) => {
-  try {
-    if (!notification.isRead) {
-      await markRead(notification._id);
+  const handleNotificationClick = async (notification) => {
+    try {
+      if (!notification.isRead) {
+        await markRead(notification._id);
 
-      setNotifications((prev) =>
-        prev.map((n) =>
-          n._id === notification._id
-            ? {
-                ...n,
-                isRead: true,
-              }
-            : n
-        )
-      );
+        setNotifications((prev) =>
+          prev.map((n) =>
+            n._id === notification._id
+              ? {
+                  ...n,
+                  isRead: true,
+                }
+              : n
+          )
+        );
 
-   setNotificationCount(
-  (prev) => prev + 1
-);
-      await fetchNotificationCount();
+        setNotificationCount((prev) => prev + 1);
+        await fetchNotificationCount();
+      }
+
+      setNotificationsOpen(false);
+
+      if (notification.link) {
+        navigate(notification.link);
+      }
+    } catch (err) {
+      console.log(err);
     }
+  };
 
-    setNotificationsOpen(false);
-
-    if (notification.link) {
-      navigate(
-        notification.link
-      );
-    }
-  } catch (err) {
-    console.log(err);
-  }
-};
   const fetchNotifications = async (pageNum = 1, isLoadMore = false) => {
     try {
       if (isLoadMore) {
@@ -119,71 +117,31 @@ const Topbar = () => {
     }
   }, [notificationsOpen, handleScroll]);
 
- useEffect(() => {
-  fetchNotificationCount();
+  useEffect(() => {
+    fetchNotificationCount();
 
-  const handleNotification =
-    (notification) => {
-      console.log(
-        "Realtime:",
-        notification
-      );
-
-      setNotifications(
-        (prev) => [
-          notification,
-          ...prev,
-        ]
-      );
-
-      setNotificationCount(
-        (prev) =>
-          prev + 1
-      );
+    const handleNotification = (notification) => {
+      console.log("Realtime:", notification);
+      setNotifications((prev) => [notification, ...prev]);
+      setNotificationCount((prev) => prev + 1);
     };
 
-  const handleRemove =
-    (notificationId) => {
-      setNotifications(
-        (prev) =>
-          prev.filter(
-            (n) =>
-              n._id !==
-              notificationId
-          )
+    const handleRemove = (notificationId) => {
+      setNotifications((prev) =>
+        prev.filter((n) => n._id !== notificationId)
       );
-
-      setNotificationCount(
-        (prev) =>
-          Math.max(
-            0,
-            prev - 1
-          )
-      );
+      setNotificationCount((prev) => Math.max(0, prev - 1));
     };
 
-  socket.on(
-    "new_notification",
-    handleNotification
-  );
+    socket.on("new_notification", handleNotification);
+    socket.on("notification_removed", handleRemove);
 
-  socket.on(
-    "notification_removed",
-    handleRemove
-  );
+    return () => {
+      socket.off("new_notification", handleNotification);
+      socket.off("notification_removed", handleRemove);
+    };
+  }, []);
 
-  return () => {
-    socket.off(
-      "new_notification",
-      handleNotification
-    );
-
-    socket.off(
-      "notification_removed",
-      handleRemove
-    );
-  };
-}, []);
   const handleLogout = async () => {
     try {
       await logoutUser();
@@ -324,6 +282,66 @@ const Topbar = () => {
             gap: "24px",
           }}
         >
+          {/* Chat Icon with Unread Badge */}
+          <div
+            style={{
+              position: "relative",
+              cursor: "pointer",
+            }}
+            onClick={() => navigate("/dashboard/chat")}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              style={{
+                width: "28px",
+                height: "28px",
+                color: "#4b5563",
+                transition: "color 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "#6366f1";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "#4b5563";
+              }}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"
+              />
+            </svg>
+
+            {chatUnread > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "-6px",
+                  right: "-6px",
+                  background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+                  color: "white",
+                  minWidth: "20px",
+                  height: "20px",
+                  borderRadius: "999px",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  padding: "0 4px",
+                  border: "2px solid white",
+                  boxShadow: "0 2px 4px rgba(239, 68, 68, 0.4)",
+                }}
+              >
+                {chatUnread > 99 ? "99+" : chatUnread}
+              </div>
+            )}
+          </div>
+
           {/* Notification Bell */}
           <div
             ref={notificationRef}

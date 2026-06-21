@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const chatRoomSchema = new mongoose.Schema(
   {
@@ -36,7 +36,35 @@ const chatRoomSchema = new mongoose.Schema(
       default: true,
     },
 
-    lastMessageAt: Date,
+lastMessage: {
+type:
+mongoose.Schema.Types.ObjectId,
+
+ref:
+"Message",
+
+default:
+null,
+},
+
+lastMessageAt: {
+type:
+Date,
+
+default:
+null,
+},
+
+unreadCount: {
+type:
+Map,
+
+of:
+Number,
+
+default:
+{},
+},
   },
   { timestamps: true }
 );
@@ -44,4 +72,4 @@ const chatRoomSchema = new mongoose.Schema(
 // Indexes
 chatRoomSchema.index({ collegeId: 1, visibility: 1, lastMessageAt: -1 });
 
-export default mongoose.model("ChatRoom", chatRoomSchema);
+module.exports = mongoose.model("ChatRoom", chatRoomSchema);

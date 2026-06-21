@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const confessionModerationSchema = new mongoose.Schema(
   {
@@ -33,7 +33,7 @@ const confessionModerationSchema = new mongoose.Schema(
 // Indexes
 confessionModerationSchema.index({ confessionId: 1, adminId: 1, action: 1 });
 
-export default mongoose.model(
+module.exports = mongoose.model(
   "ConfessionModeration",
   confessionModerationSchema
 );

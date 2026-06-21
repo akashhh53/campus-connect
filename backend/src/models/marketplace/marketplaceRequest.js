@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const marketplaceRequestSchema = new mongoose.Schema(
   {
@@ -46,4 +46,4 @@ const marketplaceRequestSchema = new mongoose.Schema(
 // Indexes
 marketplaceRequestSchema.index({ itemId: 1, requester: 1, status: 1 });
 
-export default mongoose.model("MarketplaceRequest", marketplaceRequestSchema);
+module.exports = mongoose.model("MarketplaceRequest", marketplaceRequestSchema);

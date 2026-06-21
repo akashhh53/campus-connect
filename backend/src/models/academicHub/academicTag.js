@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const academicTagSchema = new mongoose.Schema(
   {
@@ -29,4 +29,4 @@ const academicTagSchema = new mongoose.Schema(
 // Index
 academicTagSchema.index({ collegeId: 1, name: 1 });
 
-export default mongoose.model("AcademicTag", academicTagSchema);
+module.exports = mongoose.model("AcademicTag", academicTagSchema);

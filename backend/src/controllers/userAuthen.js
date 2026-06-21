@@ -1057,6 +1057,7 @@ const updateClg = async (req, res) => {
   }
 };
 
+
 module.exports = {
   sendAdminInvite,
   acceptAdminInvite,
@@ -1073,4 +1074,5 @@ module.exports = {
   updateRole,
   updateClg,
   createCollege,
+  
 };

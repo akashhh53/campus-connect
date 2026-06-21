@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const libraryAccessLogSchema = new mongoose.Schema(
   {
@@ -32,4 +32,4 @@ const libraryAccessLogSchema = new mongoose.Schema(
 // Indexes
 libraryAccessLogSchema.index({ itemId: 1, userId: 1, action: 1, createdAt: -1 });
 
-export default mongoose.model("LibraryAccessLog", libraryAccessLogSchema);
+module.exports = mongoose.model("LibraryAccessLog", libraryAccessLogSchema);

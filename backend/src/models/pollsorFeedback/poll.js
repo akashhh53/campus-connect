@@ -56,4 +56,4 @@ const pollSchema = new mongoose.Schema(
 // Indexes
 pollSchema.index({ collegeId: 1, visibility: 1, isActive: 1 });
 
-export default mongoose.model("Poll", pollSchema);
+module.exports = mongoose.model("Poll", pollSchema);

@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const eventRegistrationSchema = new mongoose.Schema(
   {
@@ -37,4 +37,4 @@ const eventRegistrationSchema = new mongoose.Schema(
 // Indexes
 eventRegistrationSchema.index({ eventId: 1, userId: 1, status: 1 });
 
-export default mongoose.model("EventRegistration", eventRegistrationSchema);
+module.exports = mongoose.model("EventRegistration", eventRegistrationSchema);

@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const moderationQueueSchema = new mongoose.Schema(
   {
@@ -46,4 +46,4 @@ const moderationQueueSchema = new mongoose.Schema(
 // Indexes
 moderationQueueSchema.index({ module: 1, status: 1, targetId: 1 });
 
-export default mongoose.model("ModerationQueue", moderationQueueSchema);
+module.exports = mongoose.model("ModerationQueue", moderationQueueSchema);

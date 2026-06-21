@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const academicThreadSchema = new mongoose.Schema(
   {
@@ -62,4 +62,4 @@ academicThreadSchema.index({ collegeId: 1, visibility: 1, createdAt: -1 });
 academicThreadSchema.index({ author: 1 });
 academicThreadSchema.index({ tags: 1 });
 
-export default mongoose.model("AcademicThread", academicThreadSchema);
+module.exports = mongoose.model("AcademicThread", academicThreadSchema);

@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const pollResponseSchema = new mongoose.Schema(
   {
@@ -31,4 +31,4 @@ const pollResponseSchema = new mongoose.Schema(
 // Ensure one response per user per poll
 pollResponseSchema.index({ pollId: 1, userId: 1 }, { unique: true });
 
-export default mongoose.model("PollResponse", pollResponseSchema);
+module.exports = mongoose.model("PollResponse", pollResponseSchema);

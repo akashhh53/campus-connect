@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const marketplaceItemSchema = new mongoose.Schema(
   {
@@ -59,4 +59,4 @@ const marketplaceItemSchema = new mongoose.Schema(
 marketplaceItemSchema.index({ collegeId: 1, status: 1, createdAt: -1 });
 marketplaceItemSchema.index({ owner: 1 });
 
-export default mongoose.model("MarketplaceItem", marketplaceItemSchema);
+module.exports = mongoose.model("MarketplaceItem", marketplaceItemSchema);

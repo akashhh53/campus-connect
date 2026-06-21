@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const chatConsentSchema = new mongoose.Schema(
   {
@@ -33,4 +33,4 @@ const chatConsentSchema = new mongoose.Schema(
 // Unique request per pair
 chatConsentSchema.index({ requester: 1, recipient: 1 }, { unique: true });
 
-export default mongoose.model("ChatConsent", chatConsentSchema);
+module.exports = mongoose.model("ChatConsent", chatConsentSchema);

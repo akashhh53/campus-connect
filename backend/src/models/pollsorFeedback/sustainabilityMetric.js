@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const sustainabilityMetricSchema = new mongoose.Schema(
   {
@@ -36,4 +36,4 @@ const sustainabilityMetricSchema = new mongoose.Schema(
 // Index
 sustainabilityMetricSchema.index({ userId: 1, collegeId: 1, metricType: 1 });
 
-export default mongoose.model("SustainabilityMetric", sustainabilityMetricSchema);
+module.exports = mongoose.model("SustainabilityMetric", sustainabilityMetricSchema);

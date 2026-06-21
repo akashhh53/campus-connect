@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const confessionSchema = new mongoose.Schema(
   {
@@ -49,4 +49,4 @@ const confessionSchema = new mongoose.Schema(
 confessionSchema.index({ collegeId: 1, createdAt: -1 });
 confessionSchema.index({ isDeleted: 1, reportsCount: -1 });
 
-export default mongoose.model("Confession", confessionSchema);
+module.exports = mongoose.model("Confession", confessionSchema);

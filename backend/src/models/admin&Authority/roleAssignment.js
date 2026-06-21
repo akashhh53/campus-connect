@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const roleAssignmentSchema = new mongoose.Schema(
   {
@@ -49,4 +49,4 @@ const roleAssignmentSchema = new mongoose.Schema(
 // Unique per user-college combination
 roleAssignmentSchema.index({ userId: 1, collegeId: 1 }, { unique: true });
 
-export default mongoose.model("RoleAssignment", roleAssignmentSchema);
+module.exports = mongoose.model("RoleAssignment", roleAssignmentSchema);

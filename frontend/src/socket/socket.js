@@ -1,22 +1,23 @@
 import { io } from "socket.io-client";
 
-const stored =
-  localStorage.getItem(
-    "userInfo"
-  );
+const stored = localStorage.getItem("userInfo");
 
-const user =
-  stored
-    ? JSON.parse(stored)
-    : null;
+const user = stored ? JSON.parse(stored) : null;
 
-const socket = io(
-  import.meta.env.VITE_API_BASE_URL,
-  {
-    withCredentials: true,
-    auth: {
-      userId: user?.user?._id,
-    },
-  }
-);
+const socket = io(import.meta.env.VITE_API_BASE_URL, {
+  withCredentials: true,
+
+  auth: {
+    userId: user?.user?._id,
+  },
+});
+
+export const joinRoom = (roomId) => {
+  socket.emit("join_room", roomId);
+};
+
+export const leaveRoom = (roomId) => {
+  socket.emit("leave_room", roomId);
+};
+
 export default socket;

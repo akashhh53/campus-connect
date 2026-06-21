@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const clubSchema = new mongoose.Schema(
   {
@@ -49,4 +49,4 @@ const clubSchema = new mongoose.Schema(
 clubSchema.index({ collegeId: 1, isActive: 1 });
 clubSchema.index({ creator: 1 });
 
-export default mongoose.model("Club", clubSchema);
+module.exports = mongoose.model("Club", clubSchema);

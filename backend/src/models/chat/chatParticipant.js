@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const chatParticipantSchema = new mongoose.Schema(
   {
@@ -26,9 +26,16 @@ const chatParticipantSchema = new mongoose.Schema(
     },
 
     isMuted: {
-      type: Boolean,
-      default: false,
-    },
+type: Boolean,
+
+default: false,
+},
+
+unreadCount: {
+type: Number,
+
+default: 0,
+},
   },
   { timestamps: true }
 );
@@ -36,4 +43,4 @@ const chatParticipantSchema = new mongoose.Schema(
 // Unique user per room
 chatParticipantSchema.index({ chatRoomId: 1, userId: 1 }, { unique: true });
 
-export default mongoose.model("ChatParticipant", chatParticipantSchema);
+module.exports = mongoose.model("ChatParticipant", chatParticipantSchema);
