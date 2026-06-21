@@ -133,7 +133,8 @@ io.on("connection", (socket) => {
         .to(roomId)
         .emit(
           "user_typing",
-          user
+         {roomId,
+        name: user,} 
         );
     }
   );

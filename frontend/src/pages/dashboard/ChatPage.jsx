@@ -1150,10 +1150,10 @@ const ChatPage = () => {
                     setMessage(e.target.value);
 
                     if (room) {
-                      socket.emit("typing", {
-                        roomId: room._id,
-                        user: selectedUser?.name,
-                      });
+                     socket.emit("typing", {
+  roomId: room._id,
+  user: currentUser?.name,
+});
 
                       clearTimeout(window.typing);
                       window.typing = setTimeout(() => {
