@@ -817,7 +817,7 @@ const Topbar = ({ chatUnread = 0 }) => {
                 <button
                   onClick={() => {
                     setIsDropdownOpen(false);
-                    navigate("/profile");
+                    navigate("/dashboard/profile");
                   }}
                   style={{
                     width: "100%",
