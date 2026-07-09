@@ -19,3 +19,9 @@ export const getMessages = async (roomId, page = 1) => {
 
   return res.data;
 };
+
+export const getMyChats = async () => {
+  const res = await api.get("/chat/my-chats");
+
+  return res.data;
+};

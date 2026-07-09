@@ -14,7 +14,6 @@ const SavedPostsPage = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [viewMode, setViewMode] = useState("list");
   const observer = useRef();
-  const loaderRef = useRef();
 
   // FETCH SAVED POSTS with Pagination
   const fetchSaved = async (currentPage = 1, append = false) => {
@@ -75,7 +74,11 @@ const SavedPostsPage = () => {
 
   // Load on page open
   useEffect(() => {
-    fetchSaved(1, false);
+    const initialLoad = window.setTimeout(() => {
+      fetchSaved(1, false);
+    }, 0);
+
+    return () => window.clearTimeout(initialLoad);
   }, []);
 
   const handleImageClick = (e) => {
@@ -110,8 +113,8 @@ const SavedPostsPage = () => {
     return (
       <div style={styles.container}>
         <div style={styles.header}>
-          <div style={styles.headerContent}>
-            <div style={styles.headerLeft}>
+          <div className="header-content" style={styles.headerContent}>
+            <div className="header-left" style={styles.headerLeft}>
               <div style={styles.iconWrapper}>
                 <svg style={styles.bookmarkIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
@@ -122,12 +125,12 @@ const SavedPostsPage = () => {
                 <div style={styles.skeletonSubtitle}></div>
               </div>
             </div>
-            <div style={styles.viewToggle}>
+            <div className="view-toggle" style={styles.viewToggle}>
               <div style={styles.skeletonToggle}></div>
             </div>
           </div>
         </div>
-        <div style={styles.mainContent}>
+        <div className="main-content" style={styles.mainContent}>
           <div style={styles.skeletonStatsBar}></div>
           <div style={styles.skeletonList}>
             <div style={styles.skeletonListItem}></div>
@@ -142,8 +145,8 @@ const SavedPostsPage = () => {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <div style={styles.headerContent}>
-          <div style={styles.headerLeft}>
+        <div className="header-content" style={styles.headerContent}>
+          <div className="header-left" style={styles.headerLeft}>
             <div style={styles.iconWrapper}>
               <svg style={styles.bookmarkIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
@@ -156,7 +159,7 @@ const SavedPostsPage = () => {
           </div>
 
           {/* View Toggle */}
-          <div style={styles.viewToggle}>
+          <div className="view-toggle" style={styles.viewToggle}>
             <button
               onClick={() => setViewMode("masonry")}
               style={{
@@ -200,7 +203,7 @@ const SavedPostsPage = () => {
         </div>
       </div>
 
-      <div style={styles.mainContent}>
+      <div className="main-content" style={styles.mainContent}>
         {posts.length === 0 && !loadingMore ? (
           <div style={styles.emptyContainer}>
             <div style={styles.emptyIconWrapper}>
@@ -223,7 +226,7 @@ const SavedPostsPage = () => {
         ) : (
           <>
             {/* Stats Bar - Shows total count */}
-            <div style={styles.statsBar}>
+            <div className="stats-bar" style={styles.statsBar}>
               <div style={styles.statsText}>
                 <span style={styles.statsCount}>{totalCount || posts.length}</span> saved {totalCount === 1 ? 'post' : 'posts'}
               </div>
@@ -234,12 +237,10 @@ const SavedPostsPage = () => {
 
             {/* Masonry Layout with infinite scroll */}
             {viewMode === "masonry" && (
-              <div style={styles.masonryContainer}>
+              <div className="masonry-container" style={styles.masonryContainer}>
                 {getMasonryColumns().map((column, colIndex) => (
-                  <div key={colIndex} style={styles.masonryColumn}>
+                  <div className="masonry-column" key={colIndex} style={styles.masonryColumn}>
                     {column.map((post, idx) => {
-                      const isLastInColumn = colIndex === getMasonryColumns().length - 1 && 
-                                             idx === column.length - 1;
                       const isLastPost = colIndex === 2 && idx === column.length - 1;
                       
                       return (
@@ -270,7 +271,7 @@ const SavedPostsPage = () => {
 
             {/* Grid Layout with infinite scroll */}
             {viewMode === "grid" && (
-              <div style={styles.gridView}>
+              <div className="grid-view" style={styles.gridView}>
                 {posts.map((post, index) => (
                   <div 
                     key={post._id}
@@ -350,14 +351,16 @@ const SavedPostsPage = () => {
 const styles = {
   container: {
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+    background: 'transparent',
+    color: 'var(--cc-text)',
+    padding: '24px 0 44px',
   },
   
   // Skeleton Styles
   skeletonTitle: {
     width: '200px',
     height: '32px',
-    background: 'linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%)',
+    background: 'linear-gradient(90deg, var(--cc-surface-soft) 25%, var(--cc-surface) 50%, var(--cc-surface-soft) 75%)',
     backgroundSize: '200% 100%',
     animation: 'shimmer 1.5s infinite',
     borderRadius: '8px',
@@ -366,7 +369,7 @@ const styles = {
   skeletonSubtitle: {
     width: '280px',
     height: '16px',
-    background: 'linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%)',
+    background: 'linear-gradient(90deg, var(--cc-surface-soft) 25%, var(--cc-surface) 50%, var(--cc-surface-soft) 75%)',
     backgroundSize: '200% 100%',
     animation: 'shimmer 1.5s infinite',
     borderRadius: '4px',
@@ -374,14 +377,14 @@ const styles = {
   skeletonToggle: {
     width: '200px',
     height: '40px',
-    background: 'linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%)',
+    background: 'linear-gradient(90deg, var(--cc-surface-soft) 25%, var(--cc-surface) 50%, var(--cc-surface-soft) 75%)',
     backgroundSize: '200% 100%',
     animation: 'shimmer 1.5s infinite',
     borderRadius: '12px',
   },
   skeletonStatsBar: {
     height: '48px',
-    background: 'linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%)',
+    background: 'linear-gradient(90deg, var(--cc-surface-soft) 25%, var(--cc-surface) 50%, var(--cc-surface-soft) 75%)',
     backgroundSize: '200% 100%',
     animation: 'shimmer 1.5s infinite',
     borderRadius: '12px',
@@ -394,25 +397,25 @@ const styles = {
   },
   skeletonListItem: {
     height: '200px',
-    background: 'linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%)',
+    background: 'linear-gradient(90deg, var(--cc-surface-soft) 25%, var(--cc-surface) 50%, var(--cc-surface-soft) 75%)',
     backgroundSize: '200% 100%',
     animation: 'shimmer 1.5s infinite',
     borderRadius: '16px',
   },
   
   header: {
-    position: 'sticky',
-    top: 0,
-    zIndex: 10,
-    background: 'rgba(255, 255, 255, 0.95)',
-    backdropFilter: 'blur(10px)',
-    borderBottom: '1px solid rgba(0, 0, 0, 0.1)',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+    width: 'min(var(--cc-page-max), calc(100% - var(--cc-page-gutter)))',
+    margin: '0 auto',
+    background: 'var(--cc-surface-raised)',
+    backdropFilter: 'blur(14px)',
+    border: '1px solid var(--cc-border)',
+    borderRadius: 'var(--cc-radius)',
+    boxShadow: 'var(--cc-shadow-soft)',
   },
   headerContent: {
-    maxWidth: '1400px',
+    maxWidth: 'var(--cc-page-max)',
     margin: '0 auto',
-    padding: '20px 24px',
+    padding: '18px',
     display: 'flex',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
@@ -426,8 +429,8 @@ const styles = {
   },
   iconWrapper: {
     padding: '10px',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    borderRadius: '12px',
+    background: 'linear-gradient(135deg, var(--cc-primary), var(--cc-accent))',
+    borderRadius: 'var(--cc-radius)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -435,35 +438,36 @@ const styles = {
   bookmarkIcon: {
     width: '24px',
     height: '24px',
-    color: 'white',
+    color: '#ffffff',
   },
   title: {
     fontSize: 'clamp(24px, 5vw, 32px)',
-    fontWeight: 'bold',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    fontWeight: '850',
+    background: 'linear-gradient(135deg, var(--cc-primary), var(--cc-accent))',
     WebkitBackgroundClip: 'text',
     WebkitTextFillColor: 'transparent',
     margin: 0,
   },
   subtitle: {
     fontSize: '14px',
-    color: '#666',
+    color: 'var(--cc-muted)',
     margin: '4px 0 0 0',
   },
   
   viewToggle: {
     display: 'flex',
     gap: '8px',
-    background: '#f0f0f0',
-    padding: '4px',
-    borderRadius: '12px',
+    background: 'var(--cc-surface-soft)',
+    padding: '5px',
+    border: '1px solid var(--cc-border)',
+    borderRadius: 'var(--cc-radius)',
   },
   toggleButton: {
     padding: '8px 16px',
-    borderRadius: '8px',
+    borderRadius: '10px',
     fontSize: '14px',
-    fontWeight: '500',
-    border: 'none',
+    fontWeight: '750',
+    border: '1px solid transparent',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
@@ -471,13 +475,14 @@ const styles = {
     transition: 'all 0.2s ease',
   },
   toggleButtonActive: {
-    background: 'white',
-    color: '#667eea',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+    background: 'var(--cc-surface)',
+    color: 'var(--cc-primary-dark)',
+    border: '1px solid var(--cc-border)',
+    boxShadow: 'var(--cc-shadow-soft)',
   },
   toggleButtonInactive: {
     background: 'transparent',
-    color: '#666',
+    color: 'var(--cc-muted-strong)',
   },
   toggleIcon: {
     width: '16px',
@@ -485,9 +490,9 @@ const styles = {
   },
   
   mainContent: {
-    maxWidth: '1400px',
+    width: 'min(var(--cc-page-max), calc(100% - var(--cc-page-gutter)))',
     margin: '0 auto',
-    padding: '32px 24px',
+    padding: '20px 0 0',
   },
   
   statsBar: {
@@ -496,40 +501,41 @@ const styles = {
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: '12px',
-    marginBottom: '24px',
-    padding: '12px 16px',
-    background: 'white',
-    borderRadius: '12px',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+    marginBottom: '18px',
+    padding: '14px 16px',
+    background: 'var(--cc-surface-raised)',
+    border: '1px solid var(--cc-border)',
+    borderRadius: 'var(--cc-radius)',
+    boxShadow: 'var(--cc-shadow-soft)',
   },
   statsText: {
     fontSize: '14px',
-    color: '#666',
+    color: 'var(--cc-muted)',
   },
   statsCount: {
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '850',
+    color: 'var(--cc-text)',
     fontSize: '16px',
   },
   statsBadge: {
     fontSize: '13px',
-    color: '#667eea',
-    background: '#f0f0ff',
+    color: 'var(--cc-primary-dark)',
+    background: 'var(--cc-primary-soft)',
     padding: '4px 12px',
-    borderRadius: '20px',
+    borderRadius: '999px',
   },
   
   // MASONRY LAYOUT
   masonryContainer: {
     display: 'flex',
-    gap: '24px',
+    gap: '18px',
     width: '100%',
   },
   masonryColumn: {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    gap: '24px',
+    gap: '18px',
   },
   masonryItem: {
     width: '100%',
@@ -540,8 +546,8 @@ const styles = {
   // GRID LAYOUT
   gridView: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-    gap: '24px',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+    gap: '18px',
   },
   gridItem: {
     animation: 'fadeInUp 0.4s ease-out forwards',
@@ -556,7 +562,7 @@ const styles = {
   listView: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '20px',
+    gap: '16px',
   },
   listItem: {
     width: '100%',
@@ -576,15 +582,15 @@ const styles = {
   loadMoreSpinner: {
     width: '40px',
     height: '40px',
-    border: '3px solid #e5e7eb',
-    borderTop: '3px solid #667eea',
+    border: '3px solid var(--cc-border)',
+    borderTop: '3px solid var(--cc-primary)',
     borderRadius: '50%',
     animation: 'spin 0.8s linear infinite',
   },
   loadMoreText: {
     fontSize: '14px',
-    color: '#6b7280',
-    fontWeight: '500',
+    color: 'var(--cc-muted)',
+    fontWeight: '750',
   },
   
   // End of Feed
@@ -598,11 +604,11 @@ const styles = {
   endLine: {
     flex: 1,
     height: '1px',
-    background: 'linear-gradient(90deg, transparent, #cbd5e1, transparent)',
+    background: 'linear-gradient(90deg, transparent, var(--cc-border-strong), transparent)',
   },
   endText: {
     fontSize: '14px',
-    color: '#6b7280',
+    color: 'var(--cc-muted)',
     whiteSpace: 'nowrap',
   },
   
@@ -614,39 +620,43 @@ const styles = {
     minHeight: '60vh',
     textAlign: 'center',
     padding: '48px 24px',
+    background: 'var(--cc-surface-raised)',
+    border: '1px solid var(--cc-border)',
+    borderRadius: 'var(--cc-radius)',
+    boxShadow: 'var(--cc-shadow-soft)',
   },
   emptyIconWrapper: {
-    background: 'white',
-    borderRadius: '50%',
+    background: 'var(--cc-primary-soft)',
+    borderRadius: 'var(--cc-radius)',
     padding: '24px',
     marginBottom: '24px',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+    boxShadow: 'var(--cc-shadow-soft)',
   },
   emptyIcon: {
     width: '64px',
     height: '64px',
-    color: '#ccc',
+    color: 'var(--cc-primary)',
   },
   emptyTitle: {
     fontSize: '24px',
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: '850',
+    color: 'var(--cc-text)',
     marginBottom: '8px',
   },
   emptyText: {
     fontSize: '16px',
-    color: '#666',
+    color: 'var(--cc-muted)',
     marginBottom: '24px',
     maxWidth: '400px',
   },
   emptyButton: {
     padding: '10px 24px',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    color: 'white',
+    background: 'linear-gradient(135deg, var(--cc-primary), var(--cc-accent))',
+    color: '#ffffff',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: 'var(--cc-radius)',
     fontSize: '16px',
-    fontWeight: '500',
+    fontWeight: '800',
     cursor: 'pointer',
     transition: 'transform 0.2s ease, box-shadow 0.2s ease',
   },
@@ -683,7 +693,7 @@ const addStyles = () => {
       
       .empty-button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        box-shadow: var(--cc-shadow-soft);
       }
       
       .masonry-item, .grid-item, .list-item {
@@ -705,7 +715,7 @@ const addStyles = () => {
         }
         
         .main-content {
-          padding: 20px 16px !important;
+          padding: 20px 0 0 !important;
         }
         
         .masonry-container {

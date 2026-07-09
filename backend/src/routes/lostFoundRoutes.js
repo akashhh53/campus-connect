@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const userMiddleware = require('../middleware/userMiddleware');
+const { requireModule } = require('../middleware/moduleAccess');
 const {
   reportLostItem,
   reportFoundItem,
@@ -16,6 +17,7 @@ const {upload}  = require('../config/cloudinary');
 
 // All routes require authentication
 router.use(userMiddleware);
+router.use(requireModule('lostFound'));
 
 // Report routes
 router.post(

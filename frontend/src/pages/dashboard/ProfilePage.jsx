@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, memo, useRef } from "react";
+import { useEffect, useState, useCallback, memo, useMemo, useRef } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router";
 import {
@@ -13,12 +13,20 @@ import EditProfileModal from "../../components/profile/EditProfileModal";
 const ProfilePage = memo(() => {
   const navigate = useNavigate();
   const reduxUser = useSelector((state) => state.auth.user);
-  const localData = JSON.parse(localStorage.getItem("userInfo"));
+  const localData = useMemo(
+    () => JSON.parse(localStorage.getItem("userInfo") || "null"),
+    [],
+  );
 
-  const user = {
-    ...(reduxUser || {}),
-    ...(localData?.user || {}),
-  };
+  const user = useMemo(
+    () => ({
+      ...(reduxUser || {}),
+      ...(localData?.user || {}),
+    }),
+    [localData?.user, reduxUser],
+  );
+
+  const userId = user?._id;
 
   // Post pagination states
   const [posts, setPosts] = useState([]);
@@ -94,7 +102,7 @@ const ProfilePage = memo(() => {
         setLoadingMoreFollowers(true);
       }
 
-      const followersData = await getFollowers(user._id, page, 20);
+      const followersData = await getFollowers(userId, page, 20);
       const newFollowers = followersData.followers || [];
       const pagination = followersData.pagination || {};
       
@@ -108,7 +116,7 @@ const ProfilePage = memo(() => {
     } finally {
       setLoadingMoreFollowers(false);
     }
-  }, [user._id]);
+  }, [userId]);
 
   // Fetch following with pagination
   const fetchUserFollowing = useCallback(async (page = 1, append = false) => {
@@ -117,7 +125,7 @@ const ProfilePage = memo(() => {
         setLoadingMoreFollowing(true);
       }
 
-      const followingData = await getFollowing(user._id, page, 20);
+      const followingData = await getFollowing(userId, page, 20);
       const newFollowing = followingData.following || [];
       const pagination = followingData.pagination || {};
       
@@ -126,21 +134,24 @@ const ProfilePage = memo(() => {
       setTotalFollowing(pagination.total || newFollowing.length);
       setFollowingPage(page);
       
-      const followingStatus = { ...modalFollowing };
+      const followingStatus = {};
       newFollowing.forEach((item) => {
         const userId = item?.following?._id || item?._id;
         if (userId) {
           followingStatus[userId] = true;
         }
       });
-      setModalFollowing(followingStatus);
+      setModalFollowing((prev) => ({
+        ...prev,
+        ...followingStatus,
+      }));
       
     } catch (error) {
       console.error("Failed to fetch following:", error);
     } finally {
       setLoadingMoreFollowing(false);
     }
-  }, [user._id, modalFollowing]);
+  }, [userId]);
 
   // Infinite scroll observer for posts
   const lastPostElementRef = useCallback((node) => {
@@ -203,12 +214,17 @@ const ProfilePage = memo(() => {
   };
 
   useEffect(() => {
-    fetchMyPosts(1, false);
-    if (user._id) {
-      fetchUserFollowers(1, false);
-      fetchUserFollowing(1, false);
-    }
-  }, [user._id]);
+    const initialLoad = window.setTimeout(() => {
+      fetchMyPosts(1, false);
+
+      if (userId) {
+        fetchUserFollowers(1, false);
+        fetchUserFollowing(1, false);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(initialLoad);
+  }, [fetchMyPosts, fetchUserFollowers, fetchUserFollowing, userId]);
 
   const stats = {
     posts: totalPosts,
@@ -740,24 +756,31 @@ const ProfilePage = memo(() => {
         }
 
         .profile-container {
-          max-width: 1000px;
+          width: min(var(--cc-page-max), calc(100% - var(--cc-page-gutter)));
           margin: 0 auto;
-          background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
           min-height: 100vh;
+          padding: 24px 0 48px;
           position: relative;
+          color: var(--cc-text);
         }
 
         .cover-container {
-          height: clamp(180px, 25vw, 240px);
+          height: clamp(130px, 16vw, 190px);
           width: 100%;
           overflow: hidden;
           position: relative;
+          border: 1px solid rgba(15, 118, 110, 0.16);
+          border-radius: var(--cc-radius);
+          box-shadow: var(--cc-shadow-soft);
         }
 
         .cover-gradient {
           height: 100%;
           width: 100%;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background:
+            radial-gradient(circle at 85% 12%, rgba(255, 255, 255, 0.24), transparent 17rem),
+            radial-gradient(circle at 14% 82%, rgba(255, 255, 255, 0.14), transparent 18rem),
+            linear-gradient(135deg, var(--cc-primary), var(--cc-accent));
           position: relative;
         }
 
@@ -777,7 +800,9 @@ const ProfilePage = memo(() => {
         }
 
         .profile-wrapper {
-          padding: 0 clamp(16px, 4vw, 24px);
+          width: 100%;
+          margin: 0 auto;
+          padding: 0;
           position: relative;
           z-index: 2;
         }
@@ -785,7 +810,7 @@ const ProfilePage = memo(() => {
         .avatar-container {
           display: flex;
           justify-content: center;
-          margin-top: clamp(-50px, -8vw, -60px);
+          margin-top: clamp(-44px, -6vw, -54px);
           margin-bottom: clamp(12px, 3vw, 16px);
           position: relative;
           z-index: 3;
@@ -793,9 +818,10 @@ const ProfilePage = memo(() => {
 
         .avatar-frame {
           padding: 4px;
-          background: white;
+          background: var(--cc-surface);
+          border: 1px solid var(--cc-border);
           border-radius: 50%;
-          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+          box-shadow: var(--cc-shadow-soft);
           transition: transform 0.3s ease;
         }
 
@@ -804,8 +830,8 @@ const ProfilePage = memo(() => {
         }
 
         .avatar {
-          width: clamp(100px, 15vw, 120px);
-          height: clamp(100px, 15vw, 120px);
+          width: clamp(92px, 12vw, 112px);
+          height: clamp(92px, 12vw, 112px);
           border-radius: 50%;
           object-fit: cover;
           display: block;
@@ -814,15 +840,17 @@ const ProfilePage = memo(() => {
         }
 
         .profile-card {
-          background: white;
-          border-radius: clamp(16px, 4vw, 24px);
-          padding: clamp(20px, 5vw, 28px);
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+          background: var(--cc-surface-raised);
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
+          padding: clamp(22px, 5vw, 34px);
+          box-shadow: var(--cc-shadow-soft);
+          backdrop-filter: blur(14px);
           transition: all 0.3s ease;
         }
 
         .profile-card:hover {
-          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+          box-shadow: var(--cc-shadow);
         }
 
         .profile-header {
@@ -840,9 +868,9 @@ const ProfilePage = memo(() => {
         }
 
         .name {
-          font-size: clamp(24px, 5vw, 32px);
-          font-weight: 700;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          font-size: clamp(28px, 4vw, 40px);
+          font-weight: 850;
+          background: linear-gradient(135deg, var(--cc-primary), var(--cc-accent));
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
@@ -853,26 +881,26 @@ const ProfilePage = memo(() => {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          padding: 6px 16px;
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 20px;
+          padding: 8px 16px;
+          background: var(--cc-surface);
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
           font-size: 13px;
-          font-weight: 500;
+          font-weight: 750;
           cursor: pointer;
-          color: #4b5563;
+          color: var(--cc-muted-strong);
           transition: all 0.2s ease;
         }
 
         .edit-button:hover {
-          background: #f9fafb;
-          border-color: #667eea;
-          color: #667eea;
+          background: var(--cc-primary-soft);
+          border-color: rgba(15, 118, 110, 0.26);
+          color: var(--cc-primary-dark);
           transform: translateY(-1px);
         }
 
         .email {
-          color: #6b7280;
+          color: var(--cc-muted);
           font-size: clamp(13px, 3.5vw, 14px);
           margin: 8px 0 12px 0;
         }
@@ -885,18 +913,19 @@ const ProfilePage = memo(() => {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
-          color: #4f46e5;
+          border: 1px solid rgba(15, 118, 110, 0.18);
+          background: var(--cc-primary-soft);
+          color: var(--cc-primary-dark);
           padding: 5px 14px;
           border-radius: 20px;
           font-size: 12px;
-          font-weight: 600;
+          font-weight: 800;
         }
 
         .role-dot {
           width: 6px;
           height: 6px;
-          background: #4f46e5;
+          background: var(--cc-primary);
           border-radius: 50%;
           animation: pulse 2s infinite;
         }
@@ -909,11 +938,12 @@ const ProfilePage = memo(() => {
         .stats-grid {
           display: flex;
           align-items: center;
-          justify-content: center;
-          gap: 32px;
-          padding: 20px 0;
-          border-top: 1px solid #f3f4f6;
-          border-bottom: 1px solid #f3f4f6;
+          justify-content: space-evenly;
+          gap: clamp(14px, 4vw, 42px);
+          padding: 20px;
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
+          background: var(--cc-surface-soft);
           margin-bottom: 24px;
         }
 
@@ -929,8 +959,8 @@ const ProfilePage = memo(() => {
         .stat-number {
           display: block;
           font-size: clamp(22px, 5vw, 28px);
-          font-weight: 700;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          font-weight: 850;
+          background: linear-gradient(135deg, var(--cc-primary), var(--cc-accent));
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
@@ -939,18 +969,22 @@ const ProfilePage = memo(() => {
 
         .stat-label {
           font-size: 13px;
-          color: #6b7280;
-          font-weight: 500;
+          color: var(--cc-muted);
+          font-weight: 700;
         }
 
         .stat-divider {
           width: 1px;
           height: 40px;
-          background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+          background: var(--cc-border);
         }
 
         .bio-section {
           text-align: center;
+          padding: 18px;
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
+          background: var(--cc-surface);
         }
 
         .bio-header {
@@ -962,27 +996,30 @@ const ProfilePage = memo(() => {
         }
 
         .bio-header svg {
-          color: #667eea;
+          color: var(--cc-primary);
         }
 
         .bio-title {
           font-size: 16px;
-          font-weight: 600;
-          color: #374151;
+          font-weight: 800;
+          color: var(--cc-text);
           margin: 0;
         }
 
         .bio-text {
           font-size: 14px;
-          color: #6b7280;
+          color: var(--cc-muted-strong);
           line-height: 1.6;
           margin: 0;
-          max-width: 600px;
+          max-width: 760px;
           margin: 0 auto;
         }
 
         .posts-section {
-          padding: 0 clamp(16px, 4vw, 24px) 40px clamp(16px, 4vw, 24px);
+          width: 100%;
+          padding: 0 0 40px;
+          margin-left: auto;
+          margin-right: auto;
           margin-top: 32px;
         }
 
@@ -990,7 +1027,13 @@ const ProfilePage = memo(() => {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 24px;
+          gap: 14px;
+          margin-bottom: 18px;
+          padding: 14px;
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
+          background: var(--cc-surface-raised);
+          box-shadow: var(--cc-shadow-soft);
         }
 
         .posts-title-wrapper {
@@ -1005,48 +1048,50 @@ const ProfilePage = memo(() => {
           justify-content: center;
           width: 36px;
           height: 36px;
-          background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
-          border-radius: 12px;
+          background: var(--cc-primary-soft);
+          border-radius: var(--cc-radius);
         }
 
         .posts-icon-wrapper svg {
-          color: #4f46e5;
+          color: var(--cc-primary-dark);
         }
 
         .posts-title {
           font-size: clamp(18px, 4vw, 20px);
-          font-weight: 600;
-          color: #111827;
+          font-weight: 850;
+          color: var(--cc-text);
           margin: 0;
         }
 
         .posts-count {
-          background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+          background: var(--cc-surface-soft);
+          border: 1px solid var(--cc-border);
           padding: 2px 10px;
           border-radius: 20px;
           font-size: 13px;
-          font-weight: 600;
-          color: #4b5563;
+          font-weight: 800;
+          color: var(--cc-muted-strong);
         }
 
         .refresh-button {
           width: 40px;
           height: 40px;
-          border-radius: 12px;
-          border: none;
-          background: white;
+          border-radius: var(--cc-radius);
+          border: 1px solid var(--cc-border);
+          background: var(--cc-surface);
+          color: var(--cc-primary-dark);
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
           transition: all 0.2s ease;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 4px 14px rgba(21, 35, 45, 0.045);
         }
 
         .refresh-button:hover {
-          background: #f9fafb;
+          background: var(--cc-primary-soft);
           transform: rotate(180deg);
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+          box-shadow: var(--cc-shadow-soft);
         }
 
         .refresh-button.refreshing {
@@ -1061,23 +1106,24 @@ const ProfilePage = memo(() => {
         .loading-container {
           text-align: center;
           padding: 60px 20px;
-          background: white;
-          border-radius: 20px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
+          background: var(--cc-surface-raised);
+          box-shadow: var(--cc-shadow-soft);
         }
 
         .loading-spinner {
           width: 48px;
           height: 48px;
-          border: 3px solid #f3f4f6;
-          border-top-color: #667eea;
+          border: 3px solid var(--cc-border);
+          border-top-color: var(--cc-primary);
           border-radius: 50%;
           margin: 0 auto 16px;
           animation: spin 0.8s linear infinite;
         }
 
         .loading-text {
-          color: #6b7280;
+          color: var(--cc-muted);
           font-size: 14px;
         }
 
@@ -1089,15 +1135,15 @@ const ProfilePage = memo(() => {
         .loading-spinner-small {
           width: 24px;
           height: 24px;
-          border: 2px solid #f3f4f6;
-          border-top-color: #667eea;
+          border: 2px solid var(--cc-border);
+          border-top-color: var(--cc-primary);
           border-radius: 50%;
           margin: 0 auto;
           animation: spin 0.6s linear infinite;
         }
 
         .loading-more-text {
-          color: #6b7280;
+          color: var(--cc-muted);
           font-size: 12px;
           margin-top: 8px;
         }
@@ -1118,35 +1164,36 @@ const ProfilePage = memo(() => {
         .end-line {
           flex: 1;
           height: 1px;
-          background: linear-gradient(90deg, transparent, #cbd5e1, transparent);
+          background: linear-gradient(90deg, transparent, var(--cc-border-strong), transparent);
         }
 
         .end-text {
           font-size: 12px;
-          color: #9ca3af;
+          color: var(--cc-muted);
           white-space: nowrap;
         }
 
         .end-of-modal {
           text-align: center;
           padding: 16px;
-          color: #9ca3af;
+          color: var(--cc-muted);
           font-size: 12px;
         }
 
         .empty-container {
           text-align: center;
           padding: 60px 20px;
-          background: white;
-          border-radius: 20px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
+          background: var(--cc-surface-raised);
+          box-shadow: var(--cc-shadow-soft);
         }
 
         .empty-icon-wrapper {
           width: 80px;
           height: 80px;
           margin: 0 auto 20px;
-          background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+          background: var(--cc-primary-soft);
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -1154,18 +1201,18 @@ const ProfilePage = memo(() => {
         }
 
         .empty-icon-wrapper svg {
-          color: #9ca3af;
+          color: var(--cc-primary);
         }
 
         .empty-title {
           font-size: 20px;
-          font-weight: 600;
-          color: #111827;
+          font-weight: 850;
+          color: var(--cc-text);
           margin-bottom: 8px;
         }
 
         .empty-text {
-          color: #6b7280;
+          color: var(--cc-muted);
           font-size: 14px;
         }
 
@@ -1173,6 +1220,7 @@ const ProfilePage = memo(() => {
           display: flex;
           flex-direction: column;
           gap: 20px;
+          width: 100%;
         }
 
         .posts-list img {
@@ -1184,7 +1232,7 @@ const ProfilePage = memo(() => {
         .modal-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0, 0, 0, 0.5);
+          background: rgba(2, 6, 23, 0.58);
           backdrop-filter: blur(4px);
           display: flex;
           justify-content: center;
@@ -1193,13 +1241,15 @@ const ProfilePage = memo(() => {
         }
 
         .modal-card {
-          background: white;
-          width: 400px;
-          max-height: 500px;
+          background: var(--cc-surface);
+          color: var(--cc-text);
+          width: min(440px, calc(100% - 32px));
+          max-height: min(560px, calc(100vh - 56px));
           overflow: auto;
-          border-radius: 20px;
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
           padding: 0;
-          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+          box-shadow: var(--cc-shadow);
         }
 
         .modal-header {
@@ -1207,14 +1257,14 @@ const ProfilePage = memo(() => {
           justify-content: space-between;
           align-items: center;
           padding: 16px 20px;
-          border-bottom: 1px solid #e5e7eb;
+          border-bottom: 1px solid var(--cc-border);
         }
 
         .modal-header h3 {
           margin: 0;
           font-size: 18px;
-          font-weight: 600;
-          color: #111827;
+          font-weight: 850;
+          color: var(--cc-text);
         }
 
         .modal-header button {
@@ -1222,19 +1272,19 @@ const ProfilePage = memo(() => {
           background: none;
           cursor: pointer;
           font-size: 20px;
-          color: #6b7280;
+          color: var(--cc-muted);
           transition: color 0.2s;
           padding: 4px;
         }
 
         .modal-header button:hover {
-          color: #111827;
+          color: var(--cc-text);
         }
 
         .modal-search {
           position: relative;
           padding: 12px 16px;
-          border-bottom: 1px solid #e5e7eb;
+          border-bottom: 1px solid var(--cc-border);
         }
 
         .modal-search svg {
@@ -1242,22 +1292,24 @@ const ProfilePage = memo(() => {
           left: 28px;
           top: 50%;
           transform: translateY(-50%);
-          color: #9ca3af;
+          color: var(--cc-muted);
         }
 
         .search-input {
           width: 100%;
           padding: 10px 35px 10px 38px;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
+          background: var(--cc-surface-soft);
+          color: var(--cc-text);
           font-size: 14px;
           outline: none;
           transition: all 0.2s;
         }
 
         .search-input:focus {
-          border-color: #667eea;
-          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+          border-color: var(--cc-primary);
+          box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.13);
         }
 
         .search-clear {
@@ -1268,7 +1320,7 @@ const ProfilePage = memo(() => {
           background: none;
           border: none;
           cursor: pointer;
-          color: #9ca3af;
+          color: var(--cc-muted);
           font-size: 14px;
           padding: 0;
           width: 20px;
@@ -1281,8 +1333,8 @@ const ProfilePage = memo(() => {
         }
 
         .search-clear:hover {
-          background: #f3f4f6;
-          color: #4b5563;
+          background: var(--cc-surface-soft);
+          color: var(--cc-text);
         }
 
         .modal-list {
@@ -1299,14 +1351,16 @@ const ProfilePage = memo(() => {
           gap: 12px;
           padding: 10px 16px;
           align-items: center;
-          border-radius: 12px;
+          border: 1px solid transparent;
+          border-radius: var(--cc-radius);
           transition: background 0.2s;
           cursor: pointer;
           margin: 0 8px;
         }
 
         .user-row:hover {
-          background: #f9fafb;
+          border-color: var(--cc-border);
+          background: var(--cc-surface-soft);
         }
 
         .user-row img {
@@ -1322,62 +1376,74 @@ const ProfilePage = memo(() => {
 
         .user-row strong {
           font-size: 14px;
-          font-weight: 600;
-          color: #111827;
+          font-weight: 800;
+          color: var(--cc-text);
         }
 
         .follow-mini {
           margin-left: auto;
           padding: 5px 12px;
-          border: none;
+          border: 1px solid transparent;
           border-radius: 999px;
-          background: #667eea;
-          color: white;
+          background: var(--cc-primary);
+          color: #ffffff;
           cursor: pointer;
           font-size: 12px;
-          font-weight: 500;
+          font-weight: 750;
           transition: all 0.2s;
         }
 
         .follow-mini:hover {
-          background: #5a67d8;
+          background: var(--cc-primary-dark);
           transform: translateY(-1px);
         }
 
         .follow-mini.following {
-          background: #f3f4f6;
-          color: #374151;
-          border: 1px solid #e5e7eb;
+          background: var(--cc-surface-soft);
+          color: var(--cc-muted-strong);
+          border-color: var(--cc-border);
         }
 
         .follow-mini.following:hover {
-          background: #fee2e2;
-          color: #dc2626;
-          border-color: #fecaca;
+          background: var(--cc-danger-soft);
+          color: var(--cc-danger);
+          border-color: rgba(220, 38, 38, 0.24);
         }
 
         .you-btn {
           margin-left: auto;
           padding: 5px 12px;
-          border: none;
+          border: 1px solid var(--cc-border);
           border-radius: 999px;
-          background: #e5e7eb;
-          color: #4b5563;
+          background: var(--cc-surface-soft);
+          color: var(--cc-muted-strong);
           font-size: 12px;
-          font-weight: 500;
+          font-weight: 750;
           cursor: default;
         }
 
         .modal-empty {
           text-align: center;
           padding: 40px 20px;
-          color: #6b7280;
+          color: var(--cc-muted);
           font-size: 14px;
         }
 
         @media (max-width: 768px) {
+          .profile-container {
+            width: min(100% - 20px, var(--cc-page-max));
+            padding-top: 18px;
+          }
+
+          .profile-wrapper,
+          .posts-section {
+            width: min(100%, var(--cc-page-max));
+          }
+
           .stats-grid {
-            gap: 20px;
+            gap: 12px;
+            overflow-x: auto;
+            justify-content: flex-start;
           }
 
           .stat-divider {
@@ -1394,7 +1460,6 @@ const ProfilePage = memo(() => {
           }
 
           .modal-card {
-            width: 90%;
             max-width: 400px;
             margin: 20px;
           }
@@ -1402,7 +1467,8 @@ const ProfilePage = memo(() => {
 
         @media (max-width: 480px) {
           .stats-grid {
-            gap: 16px;
+            gap: 10px;
+            padding: 14px;
           }
 
           .stat-number {
@@ -1416,16 +1482,16 @@ const ProfilePage = memo(() => {
 
         @media (hover: none) and (pointer: coarse) {
           .edit-button:active {
-            background: #f3f4f6;
+            background: var(--cc-surface-soft);
             transform: scale(0.98);
           }
 
           .refresh-button:active {
-            background: #f3f4f6;
+            background: var(--cc-surface-soft);
           }
 
           .user-row:active {
-            background: #e5e7eb;
+            background: var(--cc-surface-soft);
           }
         }
 
@@ -1444,7 +1510,7 @@ const ProfilePage = memo(() => {
           .loading-spinner,
           .loading-spinner-small {
             animation: none;
-            border-top-color: #667eea;
+            border-top-color: var(--cc-primary);
           }
         }
       `}</style>

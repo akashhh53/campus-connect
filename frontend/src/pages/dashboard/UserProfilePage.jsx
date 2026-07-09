@@ -53,9 +53,6 @@ const UserProfilePage = () => {
   const postsObserverRef = useRef();
   const followersObserverRef = useRef();
   const followingObserverRef = useRef();
-  const lastPostRef = useRef();
-  const lastFollowerRef = useRef();
-  const lastFollowingRef = useRef();
 
   const isOwnProfile = currentUser?._id === id;
 
@@ -284,10 +281,14 @@ const UserProfilePage = () => {
       }
     };
 
-    if (id) {
+    if (!id) return undefined;
+
+    const initialLoad = window.setTimeout(() => {
       fetchData();
       fetchUserPosts(1, false);
-    }
+    }, 0);
+
+    return () => window.clearTimeout(initialLoad);
   }, [id, isOwnProfile, currentUser?._id, fetchUserPosts]);
 
   const handleFollow = async () => {
@@ -849,7 +850,7 @@ const UserProfilePage = () => {
                       style={{
                         textAlign: "center",
                         margin: 0,
-                        color: "#9ca3af",
+                        color: "var(--cc-muted)",
                         fontSize: "13px",
                       }}
                     >
@@ -1014,7 +1015,7 @@ const UserProfilePage = () => {
                       style={{
                         textAlign: "center",
                         margin: 0,
-                        color: "#9ca3af",
+                        color: "var(--cc-muted)",
                         fontSize: "13px",
                       }}
                     >
@@ -1033,28 +1034,34 @@ const UserProfilePage = () => {
 // All styles defined as objects
 const styles = {
   page: {
-    maxWidth: "1000px",
+    width: "min(var(--cc-page-max), calc(100% - var(--cc-page-gutter)))",
     margin: "0 auto",
-    background: "#f5f7fb",
+    background: "transparent",
+    color: "var(--cc-text)",
     minHeight: "100vh",
+    padding: "24px 0 48px",
   },
 
   // Skeleton styles
   skeletonCover: {
-    height: "180px",
-    borderRadius: "0 0 24px 24px",
-    marginBottom: "-60px",
-    background: "linear-gradient(90deg, #e0e0e0 0%, #f0f0f0 50%, #e0e0e0 100%)",
+    height: "clamp(130px, 16vw, 190px)",
+    borderRadius: "var(--cc-radius)",
+    marginBottom: "-52px",
+    background:
+      "linear-gradient(90deg, var(--cc-surface-soft) 0%, var(--cc-surface) 50%, var(--cc-surface-soft) 100%)",
     backgroundSize: "1000px 100%",
     animation: "shimmer 1.5s infinite",
   },
 
   skeletonProfileContainer: {
-    background: "white",
-    borderRadius: "24px",
-    margin: "0 24px 24px 24px",
+    width: "100%",
+    background: "var(--cc-surface-raised)",
+    border: "1px solid var(--cc-border)",
+    borderRadius: "var(--cc-radius)",
+    margin: "0 auto 24px",
     padding: "0 32px 32px 32px",
     minHeight: "280px",
+    boxShadow: "var(--cc-shadow-soft)",
   },
 
   skeletonAvatar: {
@@ -1062,8 +1069,9 @@ const styles = {
     height: "120px",
     borderRadius: "50%",
     margin: "-50px auto 16px auto",
-    border: "4px solid white",
-    background: "linear-gradient(90deg, #e0e0e0 0%, #f0f0f0 50%, #e0e0e0 100%)",
+    border: "4px solid var(--cc-surface)",
+    background:
+      "linear-gradient(90deg, var(--cc-surface-soft) 0%, var(--cc-surface) 50%, var(--cc-surface-soft) 100%)",
     backgroundSize: "1000px 100%",
     animation: "shimmer 1.5s infinite",
   },
@@ -1073,7 +1081,8 @@ const styles = {
     height: "32px",
     borderRadius: "8px",
     margin: "0 auto",
-    background: "linear-gradient(90deg, #e0e0e0 0%, #f0f0f0 50%, #e0e0e0 100%)",
+    background:
+      "linear-gradient(90deg, var(--cc-surface-soft) 0%, var(--cc-surface) 50%, var(--cc-surface-soft) 100%)",
     backgroundSize: "1000px 100%",
     animation: "shimmer 1.5s infinite",
   },
@@ -1082,7 +1091,8 @@ const styles = {
     width: "100px",
     height: "36px",
     borderRadius: "30px",
-    background: "linear-gradient(90deg, #e0e0e0 0%, #f0f0f0 50%, #e0e0e0 100%)",
+    background:
+      "linear-gradient(90deg, var(--cc-surface-soft) 0%, var(--cc-surface) 50%, var(--cc-surface-soft) 100%)",
     backgroundSize: "1000px 100%",
     animation: "shimmer 1.5s infinite",
   },
@@ -1092,7 +1102,8 @@ const styles = {
     height: "16px",
     borderRadius: "4px",
     margin: "12px auto",
-    background: "linear-gradient(90deg, #e0e0e0 0%, #f0f0f0 50%, #e0e0e0 100%)",
+    background:
+      "linear-gradient(90deg, var(--cc-surface-soft) 0%, var(--cc-surface) 50%, var(--cc-surface-soft) 100%)",
     backgroundSize: "1000px 100%",
     animation: "shimmer 1.5s infinite",
   },
@@ -1102,7 +1113,8 @@ const styles = {
     height: "40px",
     borderRadius: "8px",
     margin: "0 auto 20px",
-    background: "linear-gradient(90deg, #e0e0e0 0%, #f0f0f0 50%, #e0e0e0 100%)",
+    background:
+      "linear-gradient(90deg, var(--cc-surface-soft) 0%, var(--cc-surface) 50%, var(--cc-surface-soft) 100%)",
     backgroundSize: "1000px 100%",
     animation: "shimmer 1.5s infinite",
   },
@@ -1112,7 +1124,8 @@ const styles = {
     height: "28px",
     borderRadius: "6px",
     margin: "0 auto 4px",
-    background: "linear-gradient(90deg, #e0e0e0 0%, #f0f0f0 50%, #e0e0e0 100%)",
+    background:
+      "linear-gradient(90deg, var(--cc-surface-soft) 0%, var(--cc-surface) 50%, var(--cc-surface-soft) 100%)",
     backgroundSize: "1000px 100%",
     animation: "shimmer 1.5s infinite",
   },
@@ -1122,7 +1135,8 @@ const styles = {
     height: "14px",
     borderRadius: "4px",
     margin: "0 auto",
-    background: "linear-gradient(90deg, #e0e0e0 0%, #f0f0f0 50%, #e0e0e0 100%)",
+    background:
+      "linear-gradient(90deg, var(--cc-surface-soft) 0%, var(--cc-surface) 50%, var(--cc-surface-soft) 100%)",
     backgroundSize: "1000px 100%",
     animation: "shimmer 1.5s infinite",
   },
@@ -1131,16 +1145,18 @@ const styles = {
     width: "150px",
     height: "24px",
     borderRadius: "6px",
-    background: "linear-gradient(90deg, #e0e0e0 0%, #f0f0f0 50%, #e0e0e0 100%)",
+    background:
+      "linear-gradient(90deg, var(--cc-surface-soft) 0%, var(--cc-surface) 50%, var(--cc-surface-soft) 100%)",
     backgroundSize: "1000px 100%",
     animation: "shimmer 1.5s infinite",
   },
 
   skeletonPost: {
     height: "300px",
-    borderRadius: "24px",
+    borderRadius: "var(--cc-radius)",
     marginBottom: "20px",
-    background: "linear-gradient(90deg, #e0e0e0 0%, #f0f0f0 50%, #e0e0e0 100%)",
+    background:
+      "linear-gradient(90deg, var(--cc-surface-soft) 0%, var(--cc-surface) 50%, var(--cc-surface-soft) 100%)",
     backgroundSize: "1000px 100%",
     animation: "shimmer 1.5s infinite",
   },
@@ -1149,22 +1165,24 @@ const styles = {
   loadingContainer: {
     textAlign: "center",
     padding: "60px 20px",
-    background: "white",
-    borderRadius: "20px",
+    background: "var(--cc-surface-raised)",
+    border: "1px solid var(--cc-border)",
+    borderRadius: "var(--cc-radius)",
+    boxShadow: "var(--cc-shadow-soft)",
   },
 
   loadingSpinner: {
     width: "48px",
     height: "48px",
-    border: "3px solid #f3f4f6",
-    borderTopColor: "#667eea",
+    border: "3px solid var(--cc-border)",
+    borderTopColor: "var(--cc-primary)",
     borderRadius: "50%",
     margin: "0 auto 16px",
     animation: "spin 0.8s linear infinite",
   },
 
   loadingText: {
-    color: "#6b7280",
+    color: "var(--cc-muted)",
     fontSize: "14px",
   },
 
@@ -1176,15 +1194,15 @@ const styles = {
   loadingSpinnerSmall: {
     width: "32px",
     height: "32px",
-    border: "3px solid #f3f4f6",
-    borderTopColor: "#667eea",
+    border: "3px solid var(--cc-border)",
+    borderTopColor: "var(--cc-primary)",
     borderRadius: "50%",
     margin: "0 auto 12px",
     animation: "spin 0.8s linear infinite",
   },
 
   loadingMoreText: {
-    color: "#6b7280",
+    color: "var(--cc-muted)",
     fontSize: "13px",
   },
 
@@ -1199,66 +1217,73 @@ const styles = {
   endLine: {
     flex: 1,
     height: "1px",
-    background: "linear-gradient(90deg, transparent, #cbd5e1, transparent)",
+    background: "linear-gradient(90deg, transparent, var(--cc-border-strong), transparent)",
   },
 
   endText: {
     fontSize: "13px",
-    color: "#6b7280",
+    color: "var(--cc-muted)",
     whiteSpace: "nowrap",
   },
 
   // Cover styles
   coverContainer: {
-    height: "180px",
-    borderRadius: "0 0 24px 24px",
+    height: "clamp(130px, 16vw, 190px)",
+    borderRadius: "var(--cc-radius)",
     position: "relative",
+    overflow: "hidden",
+    border: "1px solid rgba(15, 118, 110, 0.16)",
+    boxShadow: "var(--cc-shadow-soft)",
   },
 
   coverGradient: {
     height: "100%",
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    borderRadius: "0 0 24px 24px",
+    background:
+      "radial-gradient(circle at 85% 12%, rgba(255, 255, 255, 0.2), transparent 16rem), linear-gradient(135deg, var(--cc-primary), var(--cc-accent))",
+    borderRadius: "var(--cc-radius)",
   },
 
   // Profile container
   profileContainer: {
-    background: "white",
-    borderRadius: "24px",
-    margin: "-60px 24px 24px 24px",
+    width: "100%",
+    background: "var(--cc-surface-raised)",
+    border: "1px solid var(--cc-border)",
+    borderRadius: "var(--cc-radius)",
+    margin: "-52px auto 24px",
     padding: "0 32px 32px 32px",
-    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.08)",
+    boxShadow: "var(--cc-shadow-soft)",
+    backdropFilter: "blur(14px)",
   },
 
   profileAvatar: {
     position: "relative",
     display: "inline-block",
-    marginTop: "-50px",
+    marginTop: "-44px",
     marginBottom: "16px",
   },
 
   avatarImage: {
-    width: "120px",
-    height: "120px",
+    width: "112px",
+    height: "112px",
     borderRadius: "50%",
     objectFit: "cover",
-    border: "4px solid white",
-    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+    border: "4px solid var(--cc-surface)",
+    boxShadow: "var(--cc-shadow-soft)",
   },
 
   verifiedBadge: {
     position: "absolute",
     bottom: "8px",
     right: "8px",
-    background: "#3b82f6",
+    background: "var(--cc-primary)",
     borderRadius: "50%",
     width: "28px",
     height: "28px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    color: "white",
-    border: "2px solid white",
+    color: "#ffffff",
+    border: "2px solid var(--cc-surface)",
   },
 
   verifiedIcon: {
@@ -1281,8 +1306,8 @@ const styles = {
 
   profileName: {
     fontSize: "28px",
-    fontWeight: "700",
-    color: "#111827",
+    fontWeight: "850",
+    color: "var(--cc-text)",
     margin: 0,
   },
 
@@ -1291,20 +1316,20 @@ const styles = {
     alignItems: "center",
     gap: "8px",
     padding: "8px 20px",
-    border: "none",
-    borderRadius: "30px",
+    border: "1px solid transparent",
+    borderRadius: "var(--cc-radius)",
     fontSize: "14px",
-    fontWeight: "600",
+    fontWeight: "800",
     cursor: "pointer",
     transition: "all 0.2s",
-    background: "#3b82f6",
-    color: "white",
+    background: "var(--cc-primary)",
+    color: "#ffffff",
   },
 
   followBtnFollowing: {
-    background: "#f3f4f6",
-    color: "#374151",
-    border: "1px solid #e5e7eb",
+    background: "var(--cc-surface-soft)",
+    color: "var(--cc-muted-strong)",
+    border: "1px solid var(--cc-border)",
   },
 
   btnSpinner: {
@@ -1317,7 +1342,7 @@ const styles = {
   },
 
   profileEmail: {
-    color: "#6b7280",
+    color: "var(--cc-muted)",
     fontSize: "14px",
     margin: "0 0 12px 0",
   },
@@ -1325,7 +1350,7 @@ const styles = {
   profileBio: {
     maxWidth: "500px",
     margin: "0 auto 20px",
-    color: "#4b5563",
+    color: "var(--cc-muted-strong)",
     fontSize: "14px",
     lineHeight: "1.6",
   },
@@ -1335,8 +1360,10 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: "32px",
-    paddingTop: "16px",
-    borderTop: "1px solid #e5e7eb",
+    padding: "16px",
+    border: "1px solid var(--cc-border)",
+    borderRadius: "var(--cc-radius)",
+    background: "var(--cc-surface-soft)",
   },
 
   statItem: {
@@ -1348,49 +1375,54 @@ const styles = {
   statNumber: {
     display: "block",
     fontSize: "24px",
-    fontWeight: "700",
-    color: "#111827",
+    fontWeight: "850",
+    color: "var(--cc-text)",
   },
 
   statLabel: {
     fontSize: "13px",
-    color: "#6b7280",
+    color: "var(--cc-muted)",
   },
 
   statDivider: {
     width: "1px",
     height: "40px",
-    background: "#e5e7eb",
+    background: "var(--cc-border)",
   },
 
   // Posts section
   postsSection: {
-    margin: "24px",
+    width: "100%",
+    margin: "24px auto 0",
   },
 
   postsHeader: {
     display: "flex",
     alignItems: "center",
     gap: "12px",
-    marginBottom: "20px",
-    paddingBottom: "12px",
-    borderBottom: "2px solid #e5e7eb",
+    marginBottom: "18px",
+    padding: "14px",
+    border: "1px solid var(--cc-border)",
+    borderRadius: "var(--cc-radius)",
+    background: "var(--cc-surface-raised)",
+    boxShadow: "var(--cc-shadow-soft)",
   },
 
   postsHeaderTitle: {
     fontSize: "18px",
-    fontWeight: "600",
-    color: "#111827",
+    fontWeight: "850",
+    color: "var(--cc-text)",
     margin: 0,
   },
 
   postsCount: {
-    background: "#f3f4f6",
+    background: "var(--cc-surface-soft)",
+    border: "1px solid var(--cc-border)",
     padding: "2px 10px",
     borderRadius: "20px",
     fontSize: "13px",
-    fontWeight: "600",
-    color: "#4b5563",
+    fontWeight: "800",
+    color: "var(--cc-muted-strong)",
   },
 
   postsGrid: {
@@ -1402,8 +1434,11 @@ const styles = {
   emptyPosts: {
     textAlign: "center",
     padding: "60px 20px",
-    background: "white",
-    borderRadius: "20px",
+    background: "var(--cc-surface-raised)",
+    border: "1px solid var(--cc-border)",
+    borderRadius: "var(--cc-radius)",
+    color: "var(--cc-muted)",
+    boxShadow: "var(--cc-shadow-soft)",
   },
 
   // Modal styles
@@ -1413,7 +1448,7 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: "rgba(0, 0, 0, 0.5)",
+    background: "rgba(2, 6, 23, 0.58)",
     backdropFilter: "blur(4px)",
     display: "flex",
     alignItems: "center",
@@ -1422,13 +1457,16 @@ const styles = {
   },
 
   modalContent: {
-    background: "white",
-    borderRadius: "20px",
+    background: "var(--cc-surface)",
+    color: "var(--cc-text)",
+    border: "1px solid var(--cc-border)",
+    borderRadius: "var(--cc-radius)",
     width: "90%",
     maxWidth: "450px",
     maxHeight: "80vh",
     display: "flex",
     flexDirection: "column",
+    boxShadow: "var(--cc-shadow)",
   },
 
   modalHeader: {
@@ -1436,7 +1474,7 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "center",
     padding: "20px 24px",
-    borderBottom: "1px solid #e5e7eb",
+    borderBottom: "1px solid var(--cc-border)",
   },
 
   modalCloseBtn: {
@@ -1444,13 +1482,13 @@ const styles = {
     border: "none",
     fontSize: "20px",
     cursor: "pointer",
-    color: "#6b7280",
+    color: "var(--cc-muted)",
   },
 
   modalSearchContainer: {
     position: "relative",
     padding: "16px 20px",
-    borderBottom: "1px solid #e5e7eb",
+    borderBottom: "1px solid var(--cc-border)",
   },
 
   searchIcon: {
@@ -1458,14 +1496,16 @@ const styles = {
     left: "32px",
     top: "50%",
     transform: "translateY(-50%)",
-    color: "#9ca3af",
+    color: "var(--cc-muted)",
   },
 
   modalSearchInput: {
     width: "100%",
     padding: "10px 35px 10px 38px",
-    border: "1px solid #e5e7eb",
-    borderRadius: "12px",
+    border: "1px solid var(--cc-border)",
+    borderRadius: "var(--cc-radius)",
+    background: "var(--cc-surface-soft)",
+    color: "var(--cc-text)",
     fontSize: "14px",
     outline: "none",
   },
@@ -1478,7 +1518,7 @@ const styles = {
     background: "none",
     border: "none",
     cursor: "pointer",
-    color: "#9ca3af",
+    color: "var(--cc-muted)",
     fontSize: "14px",
     padding: 0,
     width: "20px",
@@ -1502,6 +1542,8 @@ const styles = {
     padding: "12px 20px",
     cursor: "pointer",
     transition: "background 0.2s",
+    border: "1px solid transparent",
+    borderRadius: "var(--cc-radius)",
   },
 
   userListAvatar: {
@@ -1517,51 +1559,51 @@ const styles = {
 
   userListName: {
     display: "block",
-    fontWeight: "600",
-    color: "#111827",
+    fontWeight: "800",
+    color: "var(--cc-text)",
     marginBottom: "4px",
   },
 
   userListEmail: {
     fontSize: "12px",
-    color: "#6b7280",
+    color: "var(--cc-muted)",
   },
 
   followMini: {
     marginLeft: "auto",
     padding: "6px 14px",
-    border: "none",
+    border: "1px solid transparent",
     borderRadius: "999px",
-    background: "#667eea",
-    color: "white",
+    background: "var(--cc-primary)",
+    color: "#ffffff",
     cursor: "pointer",
     fontSize: "13px",
-    fontWeight: "500",
+    fontWeight: "750",
     transition: "all 0.2s",
   },
 
   followMiniFollowing: {
-    background: "#f3f4f6",
-    color: "#374151",
-    border: "1px solid #e5e7eb",
+    background: "var(--cc-surface-soft)",
+    color: "var(--cc-muted-strong)",
+    border: "1px solid var(--cc-border)",
   },
 
   youBtn: {
     marginLeft: "auto",
     padding: "6px 14px",
-    border: "none",
+    border: "1px solid var(--cc-border)",
     borderRadius: "999px",
-    background: "#e5e7eb",
-    color: "#4b5563",
+    background: "var(--cc-surface-soft)",
+    color: "var(--cc-muted-strong)",
     fontSize: "13px",
-    fontWeight: "500",
+    fontWeight: "750",
     cursor: "default",
   },
 
   modalEmpty: {
     textAlign: "center",
     padding: "40px",
-    color: "#6b7280",
+    color: "var(--cc-muted)",
   },
 
   loadingMoreModal: {
@@ -1572,7 +1614,7 @@ const styles = {
   endOfModal: {
     textAlign: "center",
     padding: "20px",
-    color: "#6b7280",
+    color: "var(--cc-muted)",
     fontSize: "12px",
   },
 };
@@ -1590,75 +1632,78 @@ if (typeof document !== "undefined") {
       to { transform: rotate(360deg); }
     }
     
-    .follow-btn:hover:not(:disabled) {
+    .profile-page .follow-btn:hover:not(:disabled) {
       transform: translateY(-1px);
     }
     
-    .follow-btn.following:hover {
-      background: #fee2e2;
-      color: #dc2626;
-      border-color: #fecaca;
+    .profile-page .follow-btn.following:hover {
+      background: var(--cc-danger-soft);
+      color: var(--cc-danger);
+      border-color: rgba(220, 38, 38, 0.24);
     }
     
-    .follow-mini:hover {
-      background: #5a67d8;
+    .profile-page .follow-mini:hover {
+      background: var(--cc-primary-dark);
       transform: translateY(-1px);
     }
     
-    .follow-mini.following:hover {
-      background: #fee2e2;
-      color: #dc2626;
-      border-color: #fecaca;
+    .profile-page .follow-mini.following:hover {
+      background: var(--cc-danger-soft);
+      color: var(--cc-danger);
+      border-color: rgba(220, 38, 38, 0.24);
     }
     
-    .stat-item:hover {
+    .profile-page .stat-item:hover {
       transform: translateY(-2px);
     }
     
-    .user-list-item:hover {
-      background: #f3f4f6;
+    .profile-page .user-list-item:hover {
+      background: var(--cc-surface-soft);
+      border-color: var(--cc-border);
     }
     
-    .modal-search-input:focus {
-      border-color: #667eea;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    .profile-page .modal-search-input:focus {
+      border-color: var(--cc-primary);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.13);
     }
     
-    .search-clear-btn:hover {
-      background: #f3f4f6;
-      color: #4b5563;
+    .profile-page .search-clear-btn:hover {
+      background: var(--cc-surface-soft);
+      color: var(--cc-text);
     }
     
     @media (max-width: 768px) {
-      .profile-container {
-        margin: -60px 16px 20px 16px;
+      .profile-page .profile-container {
+        margin: -52px auto 20px;
         padding: 0 20px 20px 20px;
+        width: min(100%, var(--cc-page-max));
       }
       
-      .profile-name {
+      .profile-page .profile-name {
         font-size: 24px;
       }
       
-      .profile-stats {
+      .profile-page .profile-stats {
         gap: 20px;
       }
       
-      .stat-number {
+      .profile-page .stat-number {
         font-size: 20px;
       }
       
-      .posts-section {
-        margin: 20px 16px;
+      .profile-page .posts-section {
+        width: min(100%, var(--cc-page-max));
+        margin: 20px auto 0;
       }
     }
     
     @media (max-width: 480px) {
-      .profile-name-section {
+      .profile-page .profile-name-section {
         flex-direction: column;
         gap: 12px;
       }
       
-      .profile-stats {
+      .profile-page .profile-stats {
         gap: 16px;
       }
     }

@@ -14,6 +14,7 @@ const {
   resetPassword,
   updateRole,
   updateClg,
+  getColleges,
   createCollege,
   refreshAccessToken,
  
@@ -32,6 +33,8 @@ router.post("/accept-invite", acceptAdminInvite);
 router.post("/register-user", registerUser); //working properly
 //login
 router.post("/login", loginUser);
+//public colleges for signup
+router.get("/colleges", getColleges);
 //refresh
 router.post("/refresh", refreshAccessToken);
 //googlelogin or facebook login

@@ -13,6 +13,35 @@ const mongoose = require("mongoose");
 const redisClient = require("../config/redis");
 const crypto = require("crypto");
 
+const normalizeURL = (url) => url?.trim().replace(/\/$/, "");
+
+const frontendURLs = [
+  process.env.FRONTEND_URL,
+  ...(process.env.FRONTEND_URLS || "").split(","),
+]
+  .map(normalizeURL)
+  .filter(Boolean);
+
+const getFrontendURL = () => frontendURLs[0] || "http://localhost:5173";
+
+const isProduction =
+  process.env.NODE_ENV === "production" ||
+  process.env.COOKIE_SECURE === "true" ||
+  frontendURLs.some((url) => url.startsWith("https://"));
+
+const authCookieOptions = (maxAge) => ({
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
+  maxAge,
+});
+
+const clearAuthCookieOptions = () => ({
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
+});
+
 //register global admin
 const registerGlobalAdmin = async (req, res) => {
   try {
@@ -72,14 +101,10 @@ const registerGlobalAdmin = async (req, res) => {
     // 6️⃣ Generate tokens
     const accessToken = generateAccessToken(newGlobalAdmin);
     const refreshToken = generateRefreshToken(newGlobalAdmin);
+    await newGlobalAdmin.populate("role", "name permissions allowedModules");
 
     // 7️⃣ Set refresh token cookie
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie("refreshToken", refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
 
     // 8️⃣ Send response
     res.status(201).json({
@@ -171,9 +196,7 @@ const sendAdminInvite = async (req, res) => {
     });
 
     // 6️⃣ Generate frontend link
-    const frontendURL =
-      process.env.FRONTEND_URL ||
-      `http://localhost:${process.env.PORT || 3000}`;
+    const frontendURL = getFrontendURL();
     const link = `${frontendURL}/accept-admin-invite?token=${inviteToken}`;
 
     // 7️⃣ Send email
@@ -275,13 +298,9 @@ const acceptAdminInvite = async (req, res) => {
 
     const accessToken = generateAccessToken(newUser);
     const refreshToken = generateRefreshToken(newUser);
+    await newUser.populate("role", "name permissions allowedModules");
 
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie("refreshToken", refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
 
     res.status(201).json({
       message: "Admin account created successfully",
@@ -367,14 +386,10 @@ const registerUser = async (req, res) => {
     // 6️⃣ Generate tokens
     const accessToken = generateAccessToken(newUser);
     const refreshToken = generateRefreshToken(newUser);
+    await newUser.populate("role", "name permissions allowedModules");
 
     // 7️⃣ Set refresh token cookie
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: none,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    res.cookie("refreshToken", refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
 
     // 8️⃣ Send response
     res.status(201).json({
@@ -464,25 +479,9 @@ const loginUser = async (req, res) => {
 
     await user.save();
 
-    res.cookie("token", accessToken, {
-      httpOnly: true,
+    res.cookie("token", accessToken, authCookieOptions(200 * 60 * 1000));
 
-      secure: true,
-
-      sameSite: "none",
-
-      maxAge: 200 * 60 * 1000,
-    });
-
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-
-      secure: true,
-
-      sameSite: "none",
-
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie("refreshToken", refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
 
     const reply = {
       _id: user._id,
@@ -552,21 +551,7 @@ const refreshAccessToken = async (req, res) => {
     // ONLY CREATE NEW ACCESS TOKEN
     const accessToken = generateAccessToken(user);
 
-    res.cookie(
-      "token",
-
-      accessToken,
-
-      {
-        httpOnly: true,
-
-        secure: true,
-
-        sameSite: "none",
-
-        maxAge: 30 * 60 * 1000,
-      },
-    );
+    res.cookie("token", accessToken, authCookieOptions(30 * 60 * 1000));
 
     return res.status(200).json({
       accessToken,
@@ -609,20 +594,8 @@ const socialLogin = async (req, res) => {
       const accessToken = generateAccessToken(user);
       const refreshToken = generateRefreshToken(user);
 
-      // 🔥 SET BOTH COOKIES (IMPORTANT)
-      res.cookie("token", accessToken, {
-        httpOnly: true,
-        secure: false,
-        sameSite: "strict",
-        maxAge: 15 * 60 * 1000,
-      });
-
-      res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: false,
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
+      res.cookie("token", accessToken, authCookieOptions(15 * 60 * 1000));
+      res.cookie("refreshToken", refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
 
       return res.status(200).json({
         message: "Social login successful",
@@ -656,21 +629,10 @@ const socialLogin = async (req, res) => {
 
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
+    await user.populate("role", "name permissions allowedModules");
 
-    // 🔥 SET BOTH COOKIES (IMPORTANT)
-    res.cookie("token", accessToken, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000,
-    });
-
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie("token", accessToken, authCookieOptions(15 * 60 * 1000));
+    res.cookie("refreshToken", refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
 
     res.status(201).json({
       message: "Account created via social login",
@@ -724,17 +686,9 @@ const logout = async (req, res) => {
     }
 
     // 🍪 Clear cookies
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-    });
+    res.clearCookie("refreshToken", clearAuthCookieOptions());
 
-    res.clearCookie("token", {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-    });
+    res.clearCookie("token", clearAuthCookieOptions());
 
     return res.status(200).json({
       message: "Logged out successfully",
@@ -863,7 +817,7 @@ const forgotPassword = async (req, res) => {
     await user.save();
 
     // Email content
-    const resetUrl = `http://localhost:3000/reset-password/${resetToken}`; // frontend link
+    const resetUrl = `${getFrontendURL()}/reset-password/${resetToken}`;
     const html = `
       <h3>Password Reset Request</h3>
       <p>Click the link below to reset your password. The link expires in 15 minutes:</p>
@@ -953,6 +907,25 @@ const updateRole = async (req, res) => {
   } catch (error) {
     console.error("ERROR:", error); // 👈 IMPORTANT
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+const getColleges = async (req, res) => {
+  try {
+    const colleges = await College.find({ isActive: true })
+      .sort({ name: 1 })
+      .select("name code location logoUrl");
+
+    res.status(200).json({
+      success: true,
+      colleges,
+    });
+  } catch (error) {
+    console.error("Get Colleges Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch colleges",
+    });
   }
 };
 
@@ -1073,6 +1046,7 @@ module.exports = {
   resetPassword,
   updateRole,
   updateClg,
+  getColleges,
   createCollege,
   
 };

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useParams, useLocation } from "react-router";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
+import { FiArrowLeft, FiFileText } from "react-icons/fi";
 
 import PostCard from "../../components/feed/PostCard";
 
@@ -36,24 +36,59 @@ const SinglePostPage = () => {
     };
 
     fetchPost();
-  }, [id]);
+  }, [id, navigate]);
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <main className="feed-page single-post-page">
+        <section className="feed-content single-post-content">
+          <div className="feed-skeleton feed-skeleton-card" />
+        </section>
+      </main>
+    );
   }
 
   if (!post) {
-    return <div>Post not found</div>;
+    return (
+      <main className="feed-page single-post-page">
+        <section className="feed-content single-post-content">
+          <div className="feed-state-card">
+            <FiFileText />
+            <h2>Post not found</h2>
+            <p>This post may have been deleted or is no longer available.</p>
+            <button
+              className="cc-button cc-button-secondary"
+              onClick={() => navigate("/dashboard/feed")}
+              type="button"
+            >
+              <FiArrowLeft />
+              Back to feed
+            </button>
+          </div>
+        </section>
+      </main>
+    );
   }
 
   return (
-    <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-      <PostCard
-        post={post}
-        forceShowComments={true}
-        targetComment={targetComment}
-      />
-    </div>
+    <main className="feed-page single-post-page">
+      <section className="feed-content single-post-content">
+        <button
+          className="single-post-back"
+          onClick={() => navigate("/dashboard/feed")}
+          type="button"
+        >
+          <FiArrowLeft />
+          Back to feed
+        </button>
+
+        <PostCard
+          post={post}
+          forceShowComments={true}
+          targetComment={targetComment}
+        />
+      </section>
+    </main>
   );
 };
 

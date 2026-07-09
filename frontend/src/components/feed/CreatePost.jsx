@@ -8,16 +8,11 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
   });
   const [attachments, setAttachments] = useState([]);
   const [previewUrls, setPreviewUrls] = useState([]);
-  const [charCount, setCharCount] = useState(0);
   const fileInputRef = useRef(null);
   const contentRef = useRef(null);
 
   const MAX_CHARS = 500;
-
-  // Update character count when content changes
-  useEffect(() => {
-    setCharCount(formData.content.length);
-  }, [formData.content]);
+  const charCount = formData.content.length;
 
   // Cleanup preview URLs on unmount
   useEffect(() => {
@@ -83,7 +78,6 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
     });
     setAttachments([]);
     setPreviewUrls([]);
-    setCharCount(0);
   };
 
   const handleCancel = () => {
@@ -94,7 +88,6 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
     });
     setAttachments([]);
     setPreviewUrls([]);
-    setCharCount(0);
     // Call the onCancel prop to close the form
     if (onCancel) {
       onCancel();
@@ -296,10 +289,12 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
         }
 
         .create-post-form {
-          background: white;
-          border-radius: 20px;
-          padding: 24px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+          background: var(--cc-surface-raised);
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
+          padding: 18px;
+          box-shadow: var(--cc-shadow-soft);
+          backdrop-filter: blur(12px);
           transition: all 0.3s ease;
           animation: slideIn 0.3s ease;
         }
@@ -316,51 +311,53 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
         }
 
         .create-post-form:hover {
-          box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+          border-color: var(--cc-border-strong);
+          box-shadow: var(--cc-shadow);
         }
 
         /* Form Header */
         .form-header {
-          text-align: center;
-          margin-bottom: 24px;
-          padding-bottom: 20px;
-          border-bottom: 2px solid #f3f4f6;
+          display: grid;
+          grid-template-columns: 40px minmax(0, 1fr);
+          column-gap: 12px;
+          align-items: center;
+          text-align: left;
+          margin-bottom: 18px;
+          padding-bottom: 16px;
+          border-bottom: 1px solid var(--cc-border);
         }
 
         .header-icon {
-          width: 48px;
-          height: 48px;
-          background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
-          border-radius: 50%;
+          width: 40px;
+          height: 40px;
+          background: linear-gradient(135deg, var(--cc-primary-soft), var(--cc-accent-soft));
+          border-radius: var(--cc-radius);
           display: flex;
           align-items: center;
           justify-content: center;
-          margin: 0 auto 12px;
+          grid-row: 1 / span 2;
         }
 
         .header-icon svg {
-          color: #4f46e5;
+          color: var(--cc-primary);
         }
 
         .form-title {
-          font-size: 22px;
+          font-size: 18px;
           font-weight: 700;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-          margin: 0 0 4px 0;
+          color: var(--cc-text);
+          margin: 0;
         }
 
         .form-subtitle {
           font-size: 13px;
-          color: #6b7280;
+          color: var(--cc-muted);
           margin: 0;
         }
 
         /* Module Selector */
         .module-selector {
-          margin-bottom: 20px;
+          margin-bottom: 16px;
         }
 
         .module-label {
@@ -368,39 +365,41 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
           align-items: center;
           gap: 6px;
           font-size: 13px;
-          font-weight: 600;
-          color: #374151;
+          font-weight: 750;
+          color: var(--cc-muted-strong);
           margin-bottom: 8px;
         }
 
         .module-label svg {
-          color: #667eea;
+          color: var(--cc-primary);
         }
 
         .module-select {
           width: 100%;
-          padding: 12px 16px;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
+          height: 42px;
+          padding: 0 12px;
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
           font-size: 14px;
-          background: white;
+          background: var(--cc-surface);
+          color: var(--cc-text);
           cursor: pointer;
           transition: all 0.2s ease;
         }
 
         .module-select:hover {
-          border-color: #667eea;
+          border-color: var(--cc-primary);
         }
 
         .module-select:focus {
           outline: none;
-          border-color: #667eea;
-          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+          border-color: var(--cc-primary);
+          box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
         }
 
         /* Input Groups */
         .input-group {
-          margin-bottom: 20px;
+          margin-bottom: 16px;
         }
 
         .input-label {
@@ -408,57 +407,63 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
           align-items: center;
           gap: 6px;
           font-size: 13px;
-          font-weight: 600;
-          color: #374151;
+          font-weight: 750;
+          color: var(--cc-muted-strong);
           margin-bottom: 8px;
         }
 
         .input-label svg {
-          color: #667eea;
+          color: var(--cc-primary);
         }
 
         .title-input {
           width: 100%;
-          padding: 12px 16px;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
+          height: 42px;
+          padding: 0 12px;
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
           font-size: 14px;
+          background: var(--cc-surface);
+          color: var(--cc-text);
           transition: all 0.2s ease;
         }
 
         .title-input:focus {
           outline: none;
-          border-color: #667eea;
-          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+          border-color: var(--cc-primary);
+          box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
         }
 
         .input-hint {
           font-size: 11px;
-          color: #9ca3af;
+          color: var(--cc-muted);
           margin-top: 4px;
           text-align: right;
         }
 
         .content-input {
           width: 100%;
-          padding: 12px 16px;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
+          min-height: 118px;
+          padding: 12px;
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
           font-size: 14px;
           font-family: inherit;
           resize: vertical;
+          background: var(--cc-surface);
+          color: var(--cc-text);
           transition: all 0.2s ease;
         }
 
         .content-input:focus {
           outline: none;
-          border-color: #667eea;
-          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+          border-color: var(--cc-primary);
+          box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
         }
 
         .char-counter {
           font-size: 11px;
-          color: #9ca3af;
+          color: var(--cc-muted);
           margin-top: 4px;
           text-align: right;
           transition: color 0.2s ease;
@@ -470,7 +475,7 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
 
         /* Attachment Section */
         .attachment-section {
-          margin-bottom: 24px;
+          margin-bottom: 18px;
         }
 
         .attachment-header {
@@ -485,12 +490,12 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
           align-items: center;
           gap: 6px;
           font-size: 13px;
-          font-weight: 600;
-          color: #374151;
+          font-weight: 750;
+          color: var(--cc-muted-strong);
         }
 
         .attachment-label svg {
-          color: #667eea;
+          color: var(--cc-primary);
         }
 
         .add-file-btn {
@@ -498,20 +503,20 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
           align-items: center;
           gap: 6px;
           padding: 6px 12px;
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
+          background: var(--cc-surface-soft);
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
           font-size: 12px;
           font-weight: 500;
-          color: #4b5563;
+          color: var(--cc-muted-strong);
           cursor: pointer;
           transition: all 0.2s ease;
         }
 
         .add-file-btn:hover {
-          background: #f3f4f6;
-          border-color: #667eea;
-          color: #667eea;
+          background: var(--cc-surface);
+          border-color: var(--cc-primary);
+          color: var(--cc-primary);
         }
 
         .file-input {
@@ -524,26 +529,26 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
           align-items: center;
           justify-content: center;
           gap: 8px;
-          padding: 32px;
-          border: 2px dashed #e5e7eb;
-          border-radius: 12px;
+          padding: 22px;
+          border: 1px dashed var(--cc-border-strong);
+          border-radius: var(--cc-radius);
           cursor: pointer;
           transition: all 0.2s ease;
-          background: #fafbfc;
+          background: var(--cc-surface-soft);
         }
 
         .file-input-label:hover {
-          border-color: #667eea;
-          background: #f9fafb;
+          border-color: var(--cc-primary);
+          background: var(--cc-surface);
         }
 
         .file-input-label svg {
-          color: #9ca3af;
+          color: var(--cc-muted);
         }
 
         .file-input-label span {
           font-size: 13px;
-          color: #6b7280;
+          color: var(--cc-muted);
         }
 
         /* Preview Grid */
@@ -556,10 +561,10 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
 
         .preview-item {
           position: relative;
-          border-radius: 12px;
+          border-radius: var(--cc-radius);
           overflow: hidden;
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
+          background: var(--cc-surface-soft);
+          border: 1px solid var(--cc-border);
         }
 
         .preview-image {
@@ -579,12 +584,12 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
         }
 
         .preview-file svg {
-          color: #667eea;
+          color: var(--cc-primary);
         }
 
         .file-name {
           font-size: 11px;
-          color: #6b7280;
+          color: var(--cc-muted);
           text-align: center;
           word-break: break-all;
         }
@@ -619,26 +624,26 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
           display: flex;
           gap: 12px;
           justify-content: flex-end;
-          padding-top: 20px;
-          border-top: 1px solid #f3f4f6;
+          padding-top: 16px;
+          border-top: 1px solid var(--cc-border);
         }
 
         .cancel-btn {
           padding: 10px 20px;
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 10px;
+          background: var(--cc-surface);
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
           font-size: 14px;
           font-weight: 500;
-          color: #6b7280;
+          color: var(--cc-muted-strong);
           cursor: pointer;
           transition: all 0.2s ease;
         }
 
         .cancel-btn:hover:not(:disabled) {
-          background: #f9fafb;
-          border-color: #d1d5db;
-          color: #374151;
+          background: var(--cc-surface-soft);
+          border-color: var(--cc-border-strong);
+          color: var(--cc-text);
         }
 
         .submit-btn {
@@ -646,19 +651,19 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
           align-items: center;
           gap: 8px;
           padding: 10px 24px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, var(--cc-primary), var(--cc-accent));
           border: none;
-          border-radius: 10px;
+          border-radius: var(--cc-radius);
           font-size: 14px;
           font-weight: 600;
-          color: white;
+          color: #ffffff;
           cursor: pointer;
           transition: all 0.3s ease;
         }
 
         .submit-btn:hover:not(:disabled) {
           transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+          box-shadow: 0 4px 12px rgba(15, 118, 110, 0.26);
         }
 
         .submit-btn:disabled,
@@ -675,7 +680,7 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
           width: 16px;
           height: 16px;
           border: 2px solid rgba(255,255,255,0.3);
-          border-top-color: white;
+          border-top-color: #ffffff;
           border-radius: 50%;
           animation: spin 0.6s linear infinite;
         }
@@ -687,7 +692,7 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
         /* Responsive Design */
         @media (max-width: 768px) {
           .create-post-form {
-            padding: 20px;
+            padding: 16px;
           }
 
           .form-actions {

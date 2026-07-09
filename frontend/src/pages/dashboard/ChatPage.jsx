@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import api from "../../api/axios";
 import { joinRoom } from "../../socket/socket";
-import { openChat, sendMessage, getMessages } from "../../services/chatService";
+import {
+  openChat,
+  sendMessage,
+  getMessages,
+  getMyChats,
+} from "../../services/chatService";
+import { searchUsers as searchUsersService } from "../../services/searchService";
 import socket from "../../socket/socket";
 import { useNavigate } from "react-router";
 
@@ -100,6 +105,8 @@ const ChatPage = () => {
   const [loadingOld, setLoadingOld] = useState(false);
   const [message, setMessage] = useState("");
   const [chats, setChats] = useState([]);
+  const [loadingChats, setLoadingChats] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [typing, setTyping] = useState(false);
   const [replyTo, setReplyTo] = useState(null);
   const [showUnread, setShowUnread] = useState(false);
@@ -118,23 +125,33 @@ const ChatPage = () => {
   const firstLoad = useRef(true);
   const hasNewMessageRef = useRef(false);
   const unreadAnchorRef = useRef(null);
+  const openChatRequestRef = useRef(0);
 
   useEffect(() => {
-    const fetchChats = async () => {
+    const fetchChats = async ({ silent = false } = {}) => {
       try {
-        const res = await api.get("/chat/my-chats");
-        setChats(res.data.chats || []);
+        if (!silent) {
+          setLoadingChats(true);
+        }
+
+        const data = await getMyChats();
+        setChats(data.chats || []);
       } catch (err) {
         console.log(err);
+      } finally {
+        if (!silent) {
+          setLoadingChats(false);
+        }
       }
     };
 
     fetchChats();
 
-    socket.on("chat_updated", fetchChats);
+    const refreshChats = () => fetchChats({ silent: true });
+    socket.on("chat_updated", refreshChats);
 
     return () => {
-      socket.off("chat_updated", fetchChats);
+      socket.off("chat_updated", refreshChats);
     };
   }, []);
 
@@ -166,8 +183,8 @@ const ChatPage = () => {
     // Helper to refresh chats from backend (single source of truth)
     const refreshChats = async () => {
       try {
-        const res = await api.get("/chat/my-chats");
-        setChats(res.data.chats || []);
+        const data = await getMyChats();
+        setChats(data.chats || []);
       } catch (err) {
         console.log(err);
       }
@@ -271,13 +288,35 @@ const ChatPage = () => {
   }, [messages.length]);
 
   const handleOpenChat = async (user) => {
+    if (!user?._id) {
+      return;
+    }
+
+    const requestId = openChatRequestRef.current + 1;
+    openChatRequestRef.current = requestId;
+    const previousRoomId = room?._id;
+
+    setSelectedUser(user);
+    setMessages([]);
+    setHasMore(true);
+    setShowUnread(false);
+    setMessage("");
+    setReplyTo(null);
+    setTyping(false);
+    setLoadingMessages(true);
+    firstLoad.current = true;
+
     try {
       const res = await openChat(user._id);
-      setSelectedUser(user);
+
+      if (openChatRequestRef.current !== requestId) {
+        return;
+      }
+
       setRoom(res.room);
 
-      if (room?._id) {
-        socket.emit("leave_room", room._id);
+      if (previousRoomId && String(previousRoomId) !== String(res.room?._id)) {
+        socket.emit("leave_room", previousRoomId);
       }
 
       joinRoom(res.room._id);
@@ -286,6 +325,11 @@ const ChatPage = () => {
       pageRef.current = 1;
 
       const history = await getMessages(res.room._id, 1);
+
+      if (openChatRequestRef.current !== requestId) {
+        return;
+      }
+
       setMessages(history.messages ?? []);
       setHasMore(history.hasMore);
 
@@ -313,6 +357,10 @@ const ChatPage = () => {
       // ===== MARK AS SEEN IMMEDIATELY =====
       // ===== MARK AS SEEN AFTER 5 SEC =====
       setTimeout(() => {
+        if (openChatRequestRef.current !== requestId || !currentUser?._id) {
+          return;
+        }
+
         socket.emit("message_seen", {
           roomId: res.room._id,
           userId: currentUser._id,
@@ -325,6 +373,10 @@ const ChatPage = () => {
       firstLoad.current = false;
     } catch (err) {
       console.log(err);
+    } finally {
+      if (openChatRequestRef.current === requestId) {
+        setLoadingMessages(false);
+      }
     }
   };
 
@@ -336,10 +388,8 @@ const ChatPage = () => {
       }
 
       try {
-        const res = await api.get(
-          `/user/search/users?q=${search}&page=1&limit=8`,
-        );
-        setSearchUsers(res.data.users || []);
+        const data = await searchUsersService(search, 1, 8);
+        setSearchUsers(data.users || []);
       } catch (err) {
         console.log(err);
       }
@@ -378,7 +428,7 @@ const ChatPage = () => {
 
   // ===== HANDLE SEND =====
   const handleSend = async () => {
-    if (!message.trim() || !room) return;
+    if (!message.trim() || !room || loadingMessages) return;
 
     try {
       await sendMessage({
@@ -439,11 +489,12 @@ const ChatPage = () => {
 
   return (
     <div
+      className="chat-page"
       style={{
         display: "flex",
         height: "calc(100vh - 70px)",
         width: "100%",
-        background: "#fafafa",
+        background: "var(--cc-bg)",
         fontFamily:
           "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
         overflow: "hidden",
@@ -451,11 +502,12 @@ const ChatPage = () => {
     >
       {/* Sidebar */}
       <div
+        className="chat-sidebar"
         style={{
           width: "360px",
           minWidth: "360px",
-          background: "#ffffff",
-          borderRight: "1px solid #dbdbdb",
+          background: "var(--cc-surface-raised)",
+          borderRight: "1px solid var(--cc-border)",
           display: "flex",
           flexDirection: "column",
           height: "100%",
@@ -463,10 +515,11 @@ const ChatPage = () => {
         }}
       >
         <div
+          className="chat-sidebar-header"
           style={{
             padding: "20px 20px",
-            borderBottom: "1px solid #dbdbdb",
-            background: "#ffffff",
+            borderBottom: "1px solid var(--cc-border)",
+            background: "var(--cc-surface-raised)",
             flexShrink: 0,
           }}
         >
@@ -475,7 +528,7 @@ const ChatPage = () => {
               margin: 0,
               fontSize: "20px",
               fontWeight: 600,
-              color: "#262626",
+              color: "var(--cc-text)",
             }}
           >
             Messages
@@ -486,14 +539,17 @@ const ChatPage = () => {
             }}
           >
             <input
+              className="chat-search-input"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search new chat"
               style={{
                 width: "100%",
                 padding: "10px 14px",
-                border: "1px solid #ddd",
+                border: "1px solid var(--cc-border)",
                 borderRadius: "12px",
+                background: "var(--cc-surface)",
+                color: "var(--cc-text)",
                 outline: "none",
               }}
             />
@@ -501,6 +557,7 @@ const ChatPage = () => {
         </div>
 
         <div
+          className="chat-list"
           style={{
             flex: 1,
             overflowY: "auto",
@@ -511,6 +568,7 @@ const ChatPage = () => {
             searchUsers.length > 0 ? (
               searchUsers.map((user) => (
                 <div
+                  className="chat-list-item"
                   key={user._id}
                   onClick={() => {
                     handleOpenChat(user);
@@ -523,7 +581,7 @@ const ChatPage = () => {
                     gap: "12px",
                     padding: "14px",
                     cursor: "pointer",
-                    borderBottom: "1px solid #eee",
+                    borderBottom: "1px solid var(--cc-border)",
                   }}
                 >
                   <Avatar user={user} size={48} />
@@ -532,7 +590,7 @@ const ChatPage = () => {
                     <div
                       style={{
                         fontSize: "12px",
-                        color: "#777",
+                        color: "var(--cc-muted)",
                       }}
                     >
                       Start new chat
@@ -542,17 +600,45 @@ const ChatPage = () => {
               ))
             ) : (
               <div
+                className="chat-empty-small"
                 style={{
                   padding: "20px",
-                  color: "#777",
+                  color: "var(--cc-muted)",
                 }}
               >
                 No users found
               </div>
             )
+          ) : loadingChats ? (
+            <div className="chat-skeleton-list" aria-label="Loading chats">
+              {[1, 2, 3, 4, 5].map((item) => (
+                <div className="chat-skeleton-row" key={item}>
+                  <span className="chat-skeleton-avatar" />
+                  <span className="chat-skeleton-lines">
+                    <span className="chat-skeleton-line is-title" />
+                    <span className="chat-skeleton-line" />
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : chats.length === 0 ? (
+            <div
+              className="chat-empty-small"
+              style={{
+                padding: "20px",
+                color: "var(--cc-muted)",
+              }}
+            >
+              No chats yet. Search someone to start a conversation.
+            </div>
           ) : (
             chats.map((chat) => (
               <div
+                className={`chat-list-item ${
+                  String(selectedUser?._id) === String(chat.user?._id)
+                    ? "is-active"
+                    : ""
+                }`}
                 key={chat.roomId}
                 onClick={() => handleOpenChat(chat.user)}
                 style={{
@@ -579,6 +665,7 @@ const ChatPage = () => {
                       }}
                     >
                       <div
+                        className="chat-user-name"
                         style={{
                           fontWeight: 600,
                           cursor: "pointer",
@@ -589,9 +676,10 @@ const ChatPage = () => {
 
                       {chat.unreadCount > 0 && (
                         <div
+                          className="chat-unread-badge"
                           style={{
                             background: "#ef4444",
-                            color: "#fff",
+                            color: "#ffffff",
                             minWidth: "18px",
                             height: "18px",
                             borderRadius: "999px",
@@ -610,9 +698,10 @@ const ChatPage = () => {
                   </div>
 
                   <div
+                    className="chat-last-message"
                     style={{
                       fontSize: "13px",
-                      color: "#777",
+                      color: "var(--cc-muted)",
                       marginTop: "4px",
                     }}
                   >
@@ -627,11 +716,12 @@ const ChatPage = () => {
 
       {/* Chat Area */}
       <div
+        className="chat-panel"
         style={{
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          background: "#ffffff",
+          background: "var(--cc-surface-raised)",
           height: "100%",
           overflow: "hidden",
           minHeight: 0,
@@ -641,10 +731,11 @@ const ChatPage = () => {
           <>
             {/* Chat Header */}
             <div
+              className="chat-panel-header"
               style={{
                 padding: "12px 24px",
-                borderBottom: "1px solid #dbdbdb",
-                background: "#ffffff",
+                borderBottom: "1px solid var(--cc-border)",
+                background: "var(--cc-surface-raised)",
                 display: "flex",
                 alignItems: "center",
                 gap: "14px",
@@ -674,7 +765,7 @@ const ChatPage = () => {
                 <div
                   style={{
                     fontSize: "12px",
-                    color: "#8e8e8e",
+                    color: "var(--cc-muted)",
                   }}
                 >
                   Online
@@ -684,6 +775,7 @@ const ChatPage = () => {
 
             {/* Messages Container */}
             <div
+              className="chat-messages"
               ref={messagesContainerRef}
               onScroll={async (e) => {
                 const container = e.currentTarget;
@@ -755,16 +847,17 @@ const ChatPage = () => {
                 overflowY: "auto",
                 overflowX: "hidden",
                 padding: "16px 20px",
-                background: "#fafafa",
+                background: "var(--cc-surface-soft)",
                 display: "flex",
                 flexDirection: "column",
               }}
             >
               {loadingOld && (
                 <div
+                  className="chat-loading-old"
                   style={{
                     textAlign: "center",
-                    color: "#8e8e8e",
+                    color: "var(--cc-muted)",
                     fontSize: "12px",
                     padding: "8px",
                   }}
@@ -773,12 +866,19 @@ const ChatPage = () => {
                 </div>
               )}
 
-              {messages.length === 0 ? (
+              {loadingMessages ? (
+                <div className="chat-loading-state">
+                  <span className="chat-spinner" />
+                  <strong>Loading conversation</strong>
+                  <small>Getting the latest messages...</small>
+                </div>
+              ) : messages.length === 0 ? (
                 <div
+                  className="chat-empty-state"
                   style={{
                     margin: "auto",
                     textAlign: "center",
-                    color: "#8e8e8e",
+                    color: "var(--cc-muted)",
                     fontSize: "14px",
                   }}
                 >
@@ -849,11 +949,12 @@ const ChatPage = () => {
                             >
                               <div
                                 style={{
-                                  background: "#e5e7eb",
+                                  background: "var(--cc-surface-raised)",
+                                  border: "1px solid var(--cc-border)",
                                   padding: "6px 14px",
                                   borderRadius: "999px",
                                   fontSize: "12px",
-                                  color: "#666",
+                                  color: "var(--cc-muted-strong)",
                                   fontWeight: 600,
                                 }}
                               >
@@ -876,13 +977,13 @@ const ChatPage = () => {
                                   style={{
                                     flex: 1,
                                     height: "1px",
-                                    background: "#0095f6",
+                                    background: "var(--cc-primary)",
                                   }}
                                 />
 
                                 <div
                                   style={{
-                                    color: "#0095f6",
+                                    color: "var(--cc-primary)",
                                     fontSize: "12px",
                                     fontWeight: 700,
                                   }}
@@ -894,7 +995,7 @@ const ChatPage = () => {
                                   style={{
                                     flex: 1,
                                     height: "1px",
-                                    background: "#0095f6",
+                                    background: "var(--cc-primary)",
                                   }}
                                 />
                               </div>
@@ -929,7 +1030,9 @@ const ChatPage = () => {
                                 onClick={() => handleReplyClick(msg)}
                                 style={{
                                   fontSize: "16px",
-                                  color: isReplying ? "#0095f6" : "#8e8e8e",
+                                  color: isReplying
+                                    ? "var(--cc-primary)"
+                                    : "var(--cc-muted)",
                                   cursor: "pointer",
                                   opacity: isReplying ? 1 : 0,
                                   width: "26px",
@@ -942,6 +1045,9 @@ const ChatPage = () => {
 
                               {/* Message Bubble - hover events directly on bubble */}
                               <div
+                                className={`chat-message-bubble ${
+                                  isMe ? "is-me" : "is-them"
+                                }`}
                                 onClick={() => {
                                   if (isReplying) {
                                     setReplyTo(null);
@@ -971,8 +1077,10 @@ const ChatPage = () => {
                                 }}
                                 style={{
                                   padding: "8px 14px",
-                                  background: isMe ? "#0095f6" : "#fff",
-                                  color: isMe ? "#fff" : "#262626",
+                                  background: isMe
+                                    ? "var(--cc-message-sent-bg)"
+                                    : "var(--cc-surface)",
+                                  color: isMe ? "var(--cc-message-sent-text)" : "var(--cc-text)",
                                   borderRadius: "18px",
                                   borderBottomRightRadius: isMe
                                     ? "4px"
@@ -980,7 +1088,10 @@ const ChatPage = () => {
                                   borderBottomLeftRadius: isMe ? "18px" : "4px",
                                   boxShadow: isMe
                                     ? "none"
-                                    : "0 1px 2px rgba(0,0,0,.08)",
+                                    : "var(--cc-shadow-soft)",
+                                  border: isMe
+                                    ? "1px solid transparent"
+                                    : "1px solid var(--cc-border)",
                                   maxWidth: "100%",
                                   cursor: "pointer",
                                 }}
@@ -995,8 +1106,10 @@ const ChatPage = () => {
                                       fontSize: "12px",
                                       marginBottom: "6px",
                                       padding: "4px 10px",
-                                      borderLeft: "3px solid #0095f6",
-                                      background: "rgba(0,0,0,.05)",
+                                      borderLeft: "3px solid var(--cc-primary)",
+                                      background: isMe
+                                        ? "rgba(255,255,255,.14)"
+                                        : "var(--cc-surface-soft)",
                                       borderRadius: "4px",
                                       cursor: "pointer",
                                     }}
@@ -1033,28 +1146,30 @@ const ChatPage = () => {
 
             {/* Bottom Section */}
             <div
+              className="chat-composer-shell"
               style={{
                 flexShrink: 0,
                 display: "flex",
                 flexDirection: "column",
-                background: "#ffffff",
-                borderTop: "1px solid #dbdbdb",
+                background: "var(--cc-surface-raised)",
+                borderTop: "1px solid var(--cc-border)",
               }}
             >
               {/* Typing Indicator */}
               {typing && (
                 <div
+                  className="chat-typing"
                   style={{
                     padding: "2px 24px",
                     paddingBottom: "0px",
-                    color: "#8e8e8e",
+                    color: "var(--cc-primary)",
                     fontSize: "12px",
                     fontStyle: "italic",
                     display: "flex",
                     alignItems: "center",
                     gap: "6px",
                     minHeight: "20px",
-                    background: "#ffffff",
+                    background: "var(--cc-surface-raised)",
                   }}
                 >
                   <span
@@ -1072,10 +1187,11 @@ const ChatPage = () => {
               {/* Reply Preview - Simple version (reverted) */}
               {replyTo && (
                 <div
+                  className="chat-reply-preview"
                   style={{
                     padding: "4px 24px",
-                    background: "#f8f9fa",
-                    borderTop: "1px solid #e9ecef",
+                    background: "var(--cc-primary-soft)",
+                    borderTop: "1px solid var(--cc-border)",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
@@ -1085,7 +1201,7 @@ const ChatPage = () => {
                   <div
                     style={{
                       fontSize: "12px",
-                      color: "#262626",
+                      color: "var(--cc-text)",
                       display: "flex",
                       alignItems: "center",
                       gap: "6px",
@@ -1093,7 +1209,7 @@ const ChatPage = () => {
                       minWidth: 0,
                     }}
                   >
-                    <span style={{ color: "#0095f6", fontSize: "14px" }}>
+                    <span style={{ color: "var(--cc-primary)", fontSize: "14px" }}>
                       ↩
                     </span>
                     <span
@@ -1101,7 +1217,7 @@ const ChatPage = () => {
                         whiteSpace: "nowrap",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
-                        color: "#262626",
+                        color: "var(--cc-text)",
                       }}
                     >
                       {replyTo.content}
@@ -1114,7 +1230,7 @@ const ChatPage = () => {
                       border: "none",
                       fontSize: "16px",
                       cursor: "pointer",
-                      color: "#8e8e8e",
+                      color: "var(--cc-muted)",
                       padding: "0 8px",
                       fontWeight: 300,
                       transition: "color 0.2s ease",
@@ -1122,10 +1238,10 @@ const ChatPage = () => {
                       flexShrink: 0,
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "#262626";
+                      e.currentTarget.style.color = "var(--cc-text)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "#8e8e8e";
+                      e.currentTarget.style.color = "var(--cc-muted)";
                     }}
                   >
                     ×
@@ -1135,17 +1251,20 @@ const ChatPage = () => {
 
               {/* Message Input */}
               <div
+                className="chat-input-row"
                 style={{
                   padding: "8px 24px",
                   display: "flex",
                   gap: "12px",
                   alignItems: "center",
                   minHeight: "48px",
-                  background: "#ffffff",
+                  background: "var(--cc-surface-raised)",
                 }}
               >
                 <input
+                  className="chat-message-input"
                   value={message}
+                  disabled={loadingMessages || !room}
                   onChange={(e) => {
                     setMessage(e.target.value);
 
@@ -1168,58 +1287,70 @@ const ChatPage = () => {
                     }
                   }}
                   placeholder={
-                    replyTo ? "Type your reply..." : "Type a message..."
+                    loadingMessages
+                      ? "Loading conversation..."
+                      : replyTo
+                        ? "Type your reply..."
+                        : "Type a message..."
                   }
                   style={{
                     flex: 1,
                     padding: "8px 16px",
-                    border: "1px solid #dbdbdb",
+                    border: "1px solid var(--cc-border)",
                     borderRadius: "24px",
                     fontSize: "14px",
                     outline: "none",
-                    background: "#fafafa",
+                    background: "var(--cc-surface-soft)",
+                    color: "var(--cc-text)",
                     transition: "all 0.2s ease",
                     minWidth: 0,
                   }}
                   onFocus={(e) => {
-                    e.target.style.borderColor = "#0095f6";
-                    e.target.style.background = "#ffffff";
-                    e.target.style.boxShadow = "0 0 0 4px rgba(0,149,246,0.1)";
+                    e.target.style.borderColor = "var(--cc-primary)";
+                    e.target.style.background = "var(--cc-surface)";
+                    e.target.style.boxShadow = "0 0 0 4px rgba(15,118,110,0.13)";
                   }}
                   onBlur={(e) => {
-                    e.target.style.borderColor = "#dbdbdb";
-                    e.target.style.background = "#fafafa";
+                    e.target.style.borderColor = "var(--cc-border)";
+                    e.target.style.background = "var(--cc-surface-soft)";
                     e.target.style.boxShadow = "none";
                   }}
                 />
                 <button
+                  className="chat-send-button"
                   onClick={handleSend}
-                  disabled={!message.trim()}
+                  disabled={!message.trim() || loadingMessages || !room}
                   style={{
                     padding: "6px 18px",
-                    background: message.trim() ? "#0095f6" : "#b2dffc",
+                    background:
+                      message.trim() && !loadingMessages && room
+                        ? "var(--cc-primary)"
+                        : "var(--cc-primary-soft)",
                     color: "#ffffff",
                     border: "none",
                     borderRadius: "24px",
                     fontWeight: 600,
                     fontSize: "13px",
-                    cursor: message.trim() ? "pointer" : "not-allowed",
+                    cursor:
+                      message.trim() && !loadingMessages && room
+                        ? "pointer"
+                        : "not-allowed",
                     transition: "all 0.2s ease",
                     whiteSpace: "nowrap",
-                    boxShadow: message.trim()
-                      ? "0 2px 8px rgba(0,149,246,0.3)"
+                    boxShadow: message.trim() && !loadingMessages && room
+                      ? "0 10px 18px rgba(15,118,110,0.18)"
                       : "none",
                     flexShrink: 0,
                   }}
                   onMouseEnter={(e) => {
-                    if (message.trim()) {
-                      e.currentTarget.style.background = "#0081d6";
+                    if (message.trim() && !loadingMessages && room) {
+                      e.currentTarget.style.background = "var(--cc-primary-dark)";
                       e.currentTarget.style.transform = "scale(1.02)";
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if (message.trim()) {
-                      e.currentTarget.style.background = "#0095f6";
+                    if (message.trim() && !loadingMessages && room) {
+                      e.currentTarget.style.background = "var(--cc-primary)";
                       e.currentTarget.style.transform = "scale(1)";
                     }
                   }}
@@ -1231,26 +1362,28 @@ const ChatPage = () => {
           </>
         ) : (
           <div
+            className="chat-empty-state chat-empty-state-main"
             style={{
               margin: "auto",
               textAlign: "center",
-              color: "#8e8e8e",
+              color: "var(--cc-muted)",
               fontSize: "16px",
               padding: "20px",
             }}
           >
             <div
+              className="chat-empty-icon"
               style={{
                 fontSize: "48px",
                 marginBottom: "16px",
               }}
             >
-              💬
+              CC
             </div>
             <div
               style={{
                 fontWeight: 600,
-                color: "#262626",
+                color: "var(--cc-text)",
                 fontSize: "18px",
                 marginBottom: "8px",
               }}

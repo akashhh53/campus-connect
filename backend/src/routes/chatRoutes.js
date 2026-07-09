@@ -11,7 +11,7 @@ const {
 
   getMessages,
 
-  getMyChats
+  getMyChats,
 } = require("../controllers/chatController");
 
 router.post(
@@ -30,17 +30,12 @@ router.post(
   sendMessage,
 );
 router.get(
-"/messages/:roomId",
+  "/messages/:roomId",
 
-userMiddleware,
+  userMiddleware,
 
-getMessages
+  getMessages,
 );
 
-
-router.get(
-"/my-chats",
-userMiddleware,
-getMyChats
-);
+router.get("/my-chats", userMiddleware, getMyChats);
 module.exports = router;

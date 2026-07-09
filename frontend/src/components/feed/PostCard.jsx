@@ -1,5 +1,18 @@
 import { useState, useCallback, memo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
+import {
+  FiBookOpen,
+  FiBookmark,
+  FiCalendar,
+  FiChevronLeft,
+  FiChevronRight,
+  FiClock,
+  FiGrid,
+  FiHeart,
+  FiMessageCircle,
+  FiMoreVertical,
+  FiTrash2,
+} from "react-icons/fi";
 import { reactToPost, removeReaction } from "../../services/reactionService";
 import CommentSection from "./CommentSection";
 import { savePost, unsavePost, deletePost } from "../../services/feedService";
@@ -7,7 +20,6 @@ import { savePost, unsavePost, deletePost } from "../../services/feedService";
 const PostCard = memo(
   ({
     post,
-    onImageClick,
     onUnsave,
     forceShowComments = false,
     targetComment,
@@ -185,11 +197,23 @@ const PostCard = memo(
     const getModuleColor = useCallback((module) => {
       switch (module) {
         case "events":
-          return { bg: "#fef3c7", color: "#d97706", icon: "🎉" };
+          return {
+            bg: "var(--cc-warning-soft)",
+            color: "var(--cc-warning)",
+            icon: FiCalendar,
+          };
         case "academicHub":
-          return { bg: "#e0e7ff", color: "#4f46e5", icon: "📚" };
+          return {
+            bg: "var(--cc-accent-soft)",
+            color: "var(--cc-accent)",
+            icon: FiBookOpen,
+          };
         default:
-          return { bg: "#dbeafe", color: "#2563eb", icon: "📱" };
+          return {
+            bg: "var(--cc-accent-soft)",
+            color: "var(--cc-accent)",
+            icon: FiGrid,
+          };
       }
     }, []);
 
@@ -200,6 +224,7 @@ const PostCard = memo(
     const hasMultipleImages = post.attachments?.length > 1;
     const currentImage = post.attachments?.[currentImageIndex];
     const moduleStyle = getModuleColor(post.module);
+    const ModuleIcon = moduleStyle.icon;
 
     return (
       <div className="post-card">
@@ -251,7 +276,7 @@ const PostCard = memo(
                     color: moduleStyle.color,
                   }}
                 >
-                  <span className="module-icon">{moduleStyle.icon}</span>
+                  <ModuleIcon className="module-icon" />
                   {post.module === "feed"
                     ? "Feed"
                     : post.module === "events"
@@ -268,11 +293,7 @@ const PostCard = memo(
               aria-label="More options"
               onClick={() => setShowMenu((prev) => !prev)}
             >
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="12" cy="6" r="2" />
-                <circle cx="12" cy="12" r="2" />
-                <circle cx="12" cy="18" r="2" />
-              </svg>
+              <FiMoreVertical />
             </button>
 
             {showMenu && isOwner && (
@@ -284,17 +305,12 @@ const PostCard = memo(
                 >
                   {deleting ? (
                     <>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="12" r="10" />
-                        <path d="M12 6v6l4 2" />
-                      </svg>
+                      <FiClock />
                       Deleting...
                     </>
                   ) : (
                     <>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 3h6" />
-                      </svg>
+                      <FiTrash2 />
                       Delete Post
                     </>
                   )}
@@ -343,9 +359,7 @@ const PostCard = memo(
                     className="nav-btn prev-btn"
                     aria-label="Previous"
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <polyline points="15 18 9 12 15 6" />
-                    </svg>
+                    <FiChevronLeft />
                   </button>
 
                   <button
@@ -353,9 +367,7 @@ const PostCard = memo(
                     className="nav-btn next-btn"
                     aria-label="Next"
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
+                    <FiChevronRight />
                   </button>
 
                   <div className="media-counter">
@@ -385,9 +397,11 @@ const PostCard = memo(
 
         {/* Engagement Stats */}
         <div className="engagement-stats">
-          <div className="likes-info">
+            <div className="likes-info">
             <div className="likes-icon-group">
-              <span className="heart-icon" aria-label="Likes">❤️</span>
+              <span className="heart-icon" aria-label="Likes">
+                <FiHeart />
+              </span>
             </div>
             <span className="likes-count">{formatCount(likesCount)}</span>
             <span className="likes-text">{likesCount === 1 ? "like" : "likes"}</span>
@@ -410,15 +424,7 @@ const PostCard = memo(
             aria-label={liked ? "Unlike" : "Like"}
           >
             <span className="action-icon">
-              {liked ? (
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-                </svg>
-              )}
+              <FiHeart />
             </span>
             <span className="action-text">{liked ? "Liked" : "Like"}</span>
           </button>
@@ -429,9 +435,7 @@ const PostCard = memo(
             aria-label="Comments"
           >
             <span className="action-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
+              <FiMessageCircle />
             </span>
             <span className="action-text">Comment</span>
           </button>
@@ -443,7 +447,7 @@ const PostCard = memo(
             disabled={saving}
           >
             <span className="action-icon">
-              {saving ? "⏳" : saved ? "🔖" : "📑"}
+              {saving ? <FiClock /> : <FiBookmark />}
             </span>
             <span className="action-text">{saved ? "Saved" : "Save"}</span>
           </button>
@@ -462,17 +466,21 @@ const PostCard = memo(
 
         <style jsx>{`
           .post-card {
-            background: #ffffff;
-            border-radius: 24px;
-            margin-bottom: 20px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1);
+            --post-card-radius: 22px;
+            background: var(--cc-surface-raised);
+            border: 1px solid var(--cc-border);
+            border-radius: var(--post-card-radius);
+            margin-bottom: 0;
+            box-shadow: var(--cc-shadow-soft);
+            backdrop-filter: blur(12px);
             transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             overflow: hidden;
           }
 
           .post-card:hover {
-            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.05);
-            transform: translateY(-2px);
+            border-color: var(--cc-border-strong);
+            box-shadow: var(--cc-shadow);
+            transform: translateY(-1px);
           }
 
           /* Header */
@@ -480,13 +488,14 @@ const PostCard = memo(
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            padding: 16px 20px 12px;
+            padding: 22px 24px 15px;
           }
 
           .author-section {
             display: flex;
-            gap: 12px;
+            gap: 14px;
             flex: 1;
+            min-width: 0;
           }
 
           .author-avatar-wrapper {
@@ -496,8 +505,9 @@ const PostCard = memo(
           }
 
           .author-avatar {
-            width: 44px;
-            height: 44px;
+            width: 46px;
+            height: 46px;
+            border: 1px solid var(--cc-border);
             border-radius: 50%;
             object-fit: cover;
             transition: transform 0.2s ease;
@@ -508,16 +518,16 @@ const PostCard = memo(
           }
 
           .author-avatar-fallback {
-            width: 44px;
-            height: 44px;
+            width: 46px;
+            height: 46px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: linear-gradient(135deg, var(--cc-primary), var(--cc-accent));
+            color: #ffffff;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
-            font-weight: 600;
+            font-size: 17px;
+            font-weight: 750;
             transition: transform 0.2s ease;
           }
 
@@ -526,39 +536,33 @@ const PostCard = memo(
           }
 
           .avatar-status {
-            position: absolute;
-            bottom: 2px;
-            right: 2px;
-            width: 12px;
-            height: 12px;
-            background: #22c55e;
-            border: 2px solid white;
-            border-radius: 50%;
+            display: none;
           }
 
           .author-details {
             flex: 1;
+            min-width: 0;
           }
 
           .name-row {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
             flex-wrap: wrap;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
           }
 
           .author-name {
-            font-weight: 700;
+            font-weight: 850;
             font-size: 15px;
-            color: #1f2937;
+            color: var(--cc-text);
             cursor: pointer;
             transition: color 0.2s;
+            line-height: 1.25;
           }
 
           .author-name:hover {
-            color: #667eea;
-            text-decoration: underline;
+            color: var(--cc-primary);
           }
 
           .verified-icon {
@@ -575,27 +579,36 @@ const PostCard = memo(
           }
 
           .post-time {
-            font-size: 13px;
-            color: #6b7280;
+            padding: 2px 8px;
+            border: 1px solid var(--cc-border);
+            border-radius: 999px;
+            background: var(--cc-surface-soft);
+            font-size: 11.5px;
+            font-weight: 700;
+            color: var(--cc-muted);
           }
 
           .meta-row {
             display: flex;
             align-items: center;
+            gap: 8px;
           }
 
           .module-badge {
             display: inline-flex;
             align-items: center;
-            gap: 4px;
-            padding: 3px 10px;
-            border-radius: 30px;
-            font-size: 11px;
-            font-weight: 600;
+            gap: 6px;
+            padding: 5px 10px;
+            border: 1px solid var(--cc-border);
+            border-radius: 999px;
+            background: var(--cc-surface-soft);
+            font-size: 11.5px;
+            font-weight: 750;
           }
 
           .module-icon {
-            font-size: 11px;
+            width: 12px;
+            height: 12px;
           }
 
           /* Menu Styles */
@@ -604,16 +617,18 @@ const PostCard = memo(
           }
 
           .menu-btn {
+            width: 38px;
+            height: 38px;
             background: transparent;
             border: none;
             cursor: pointer;
             padding: 8px;
-            border-radius: 50%;
+            border-radius: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
             transition: all 0.2s;
-            color: #6b7280;
+            color: var(--cc-muted);
           }
 
           .menu-btn svg {
@@ -622,16 +637,18 @@ const PostCard = memo(
           }
 
           .menu-btn:hover {
-            background: #f3f4f6;
+            background: var(--cc-surface-soft);
+            color: var(--cc-text);
           }
 
           .menu-dropdown {
             position: absolute;
             top: 110%;
             right: 0;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            background: var(--cc-surface-raised);
+            border: 1px solid var(--cc-border);
+            border-radius: var(--cc-radius);
+            box-shadow: var(--cc-shadow);
             overflow: hidden;
             z-index: 1000;
             min-width: 160px;
@@ -660,7 +677,8 @@ const PostCard = memo(
             cursor: pointer;
             transition: background 0.2s;
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 750;
+            color: var(--cc-text);
           }
 
           .menu-item svg {
@@ -669,15 +687,15 @@ const PostCard = memo(
           }
 
           .menu-item:hover {
-            background: #f9fafb;
+            background: var(--cc-surface-soft);
           }
 
           .delete-item {
-            color: #dc2626;
+            color: var(--cc-danger);
           }
 
           .delete-item:hover {
-            background: #fef2f2;
+            background: var(--cc-danger-soft);
           }
 
           .menu-item:disabled {
@@ -687,15 +705,15 @@ const PostCard = memo(
 
           /* Content */
           .post-content-wrapper {
-            padding: 0 20px;
+            padding: 0 24px 4px;
           }
 
           .post-title {
-            font-size: 18px;
-            font-weight: 700;
-            color: #111827;
+            font-size: 20px;
+            font-weight: 850;
+            color: var(--cc-text);
             margin: 0 0 10px 0;
-            line-height: 1.4;
+            line-height: 1.32;
           }
 
           .post-body {
@@ -704,38 +722,46 @@ const PostCard = memo(
 
           .post-text {
             font-size: 15px;
-            line-height: 1.6;
-            color: #374151;
+            line-height: 1.72;
+            color: var(--cc-text);
             margin: 0;
             white-space: pre-wrap;
             word-break: break-word;
           }
 
           .read-more {
-            background: none;
-            border: none;
-            color: #667eea;
-            font-size: 14px;
-            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            margin-top: 9px;
+            background: var(--cc-primary-soft);
+            border: 1px solid color-mix(in srgb, var(--cc-primary) 22%, transparent);
+            border-radius: 999px;
+            color: var(--cc-primary);
+            font-size: 13px;
+            font-weight: 800;
             cursor: pointer;
-            padding: 6px 0 0;
-            transition: color 0.2s;
+            padding: 6px 11px;
+            transition: background 0.2s, color 0.2s, transform 0.2s;
           }
 
           .read-more:hover {
-            color: #4f46e5;
+            color: var(--cc-primary-dark);
+            transform: translateY(-1px);
           }
 
           /* Media */
           .media-container {
-            margin: 0 0 12px;
+            margin: 8px 24px 16px;
             position: relative;
           }
 
           .media-wrapper {
             position: relative;
-            background: #f9fafb;
-            min-height: 300px;
+            overflow: hidden;
+            border: 1px solid var(--cc-border);
+            border-radius: 18px;
+            background: var(--cc-surface-soft);
+            min-height: 260px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -743,9 +769,9 @@ const PostCard = memo(
 
           .media-image {
             width: 100%;
-            max-height: 550px;
+            max-height: 480px;
             object-fit: contain;
-            background: #f9fafb;
+            background: var(--cc-surface-soft);
             pointer-events: none;
             user-select: none;
           }
@@ -838,15 +864,20 @@ const PostCard = memo(
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px 20px;
-            border-top: 1px solid #eff3f4;
-            border-bottom: 1px solid #eff3f4;
+            margin: 0 24px 12px;
+            padding: 10px 12px;
+            border-top: 1px solid var(--cc-border);
+            border-bottom: 1px solid var(--cc-border);
+            border-left: 1px solid var(--cc-border);
+            border-right: 1px solid var(--cc-border);
+            border-radius: 16px;
+            background: var(--cc-surface-soft);
           }
 
           .likes-info {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 7px;
           }
 
           .likes-icon-group {
@@ -855,40 +886,53 @@ const PostCard = memo(
           }
 
           .heart-icon {
-            font-size: 18px;
+            width: 18px;
+            height: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--cc-danger);
+          }
+
+          .heart-icon svg {
+            width: 16px;
+            height: 16px;
+            fill: var(--cc-danger-soft);
           }
 
           .likes-count {
-            font-weight: 600;
+            font-weight: 800;
             font-size: 14px;
-            color: #1f2937;
+            color: var(--cc-text);
           }
 
           .likes-text {
-            font-size: 14px;
-            color: #6b7280;
+            font-size: 13px;
+            color: var(--cc-muted);
           }
 
           .comments-stats {
             background: none;
             border: none;
             display: flex;
-            gap: 4px;
-            font-size: 14px;
-            color: #6b7280;
+            gap: 5px;
+            font-size: 13px;
+            font-weight: 750;
+            color: var(--cc-muted);
             cursor: pointer;
             transition: color 0.2s;
           }
 
           .comments-stats:hover {
-            color: #667eea;
+            color: var(--cc-primary);
           }
 
           /* Action Bar */
           .action-bar {
             display: flex;
-            padding: 6px 16px;
+            padding: 0 24px 20px;
             gap: 8px;
+            background: transparent;
           }
 
           .action-btn {
@@ -897,15 +941,16 @@ const PostCard = memo(
             align-items: center;
             justify-content: center;
             gap: 10px;
-            padding: 10px;
-            background: transparent;
-            border: none;
-            border-radius: 12px;
-            font-size: 15px;
-            font-weight: 600;
+            min-height: 42px;
+            padding: 9px 10px;
+            background: var(--cc-surface-soft);
+            border: 1px solid var(--cc-border);
+            border-radius: 14px;
+            font-size: 14px;
+            font-weight: 800;
             cursor: pointer;
             transition: all 0.2s;
-            color: #4b5563;
+            color: var(--cc-muted-strong);
             position: relative;
           }
 
@@ -936,8 +981,9 @@ const PostCard = memo(
           }
 
           .like-action:hover:not(:disabled) {
-            background: #fef2f6;
-            color: #e0245e;
+            background: var(--cc-danger-soft);
+            color: var(--cc-danger);
+            border-color: color-mix(in srgb, var(--cc-danger) 24%, var(--cc-border));
           }
 
           .like-action:hover:not(:disabled) .action-icon {
@@ -945,12 +991,12 @@ const PostCard = memo(
           }
 
           .like-action.active {
-            color: #e0245e;
+            color: var(--cc-danger);
           }
 
           .like-action.active .action-icon svg {
-            fill: #e0245e;
-            stroke: #e0245e;
+            fill: var(--cc-danger);
+            stroke: var(--cc-danger);
           }
 
           .like-action:active:not(:disabled) .action-icon {
@@ -958,13 +1004,21 @@ const PostCard = memo(
           }
 
           .comment-action:hover:not(:disabled) {
-            background: #eef2ff;
-            color: #4f46e5;
+            background: var(--cc-primary-soft);
+            color: var(--cc-primary-dark);
+            border-color: color-mix(in srgb, var(--cc-primary) 24%, var(--cc-border));
           }
 
           .comment-action.active {
-            background: #eef2ff;
-            color: #4f46e5;
+            background: var(--cc-primary-soft);
+            color: var(--cc-primary-dark);
+            border-color: color-mix(in srgb, var(--cc-primary) 24%, var(--cc-border));
+          }
+
+          .action-btn.active:not(.like-action):not(.comment-action) {
+            background: var(--cc-accent-soft);
+            color: var(--cc-accent);
+            border-color: color-mix(in srgb, var(--cc-accent) 24%, var(--cc-border));
           }
 
           .action-btn:active:not(:disabled) {
@@ -973,7 +1027,7 @@ const PostCard = memo(
 
           /* Comments */
           .comments-wrapper {
-            padding: 0 20px 20px;
+            padding: 0 24px 22px;
             animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           }
 
@@ -991,34 +1045,40 @@ const PostCard = memo(
           /* Responsive */
           @media (max-width: 768px) {
             .post-header {
-              padding: 14px 16px 10px;
+              padding: 16px 16px 12px;
             }
 
             .author-avatar,
             .author-avatar-fallback {
-              width: 40px;
-              height: 40px;
+              width: 42px;
+              height: 42px;
               font-size: 16px;
             }
 
             .post-content-wrapper {
-              padding: 0 16px;
+              padding: 0 16px 2px;
             }
 
             .post-title {
-              font-size: 16px;
+              font-size: 17px;
             }
 
             .post-text {
               font-size: 14px;
+              line-height: 1.65;
+            }
+
+            .media-container {
+              margin: 8px 16px 14px;
             }
 
             .engagement-stats {
-              padding: 8px 16px;
+              margin: 0 16px 10px;
+              padding: 9px 10px;
             }
 
             .action-bar {
-              padding: 4px 12px;
+              padding: 0 16px 16px;
             }
 
             .action-btn {

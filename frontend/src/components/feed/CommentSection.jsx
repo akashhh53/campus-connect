@@ -22,7 +22,6 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
   const [replyingTo, setReplyingTo] = useState(null);
   const [expandedReplies, setExpandedReplies] = useState({});
   const [likedComments, setLikedComments] = useState({});
-  const [localCommentCount, setLocalCommentCount] = useState(0);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -33,7 +32,6 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
   const inputRef = useRef(null);
   const commentsEndRef = useRef(null);
   const observerRef = useRef(null);
-  const lastCommentRef = useRef(null);
 
   // Fetch Comments with Pagination
   // Fetch Comments with Pagination
@@ -109,7 +107,7 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
         setLoadingMore(false);
       }
     },
-    [postId],
+    [postId, targetComment],
   );
 
   // Infinite scroll observer - FIXED
@@ -134,8 +132,12 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
   );
 
   useEffect(() => {
-    fetchComments(1, false);
-  }, [postId, fetchComments]);
+    const initialLoad = window.setTimeout(() => {
+      fetchComments(1, false);
+    }, 0);
+
+    return () => window.clearTimeout(initialLoad);
+  }, [fetchComments]);
 
   useEffect(() => {
   if (!targetComment) return;
@@ -162,16 +164,14 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
     try {
       setPosting(true);
 
-      let response;
-
       if (replyingTo?.id) {
-        response = await replyToComment(
+        await replyToComment(
           replyingTo.id,
           content,
           replyingTo.replyToUser,
         );
       } else {
-        response = await addComment(postId, content);
+        await addComment(postId, content);
       }
 
       setContent("");
@@ -544,8 +544,8 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
                         {comment.author?.role && (
                           <span className="author-badge">
                             {comment.author.role.name === "Student"
-                              ? "🎓"
-                              : "👨‍🏫"}
+                              ? "Student"
+                              : "Teacher"}
                           </span>
                         )}
                         <span className="comment-time">
@@ -560,7 +560,7 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
                       <div className="comment-likes">
                         {comment.reactionsCount > 0 && (
                           <span>
-                            ❤️ {comment.reactionsCount}{" "}
+                            {comment.reactionsCount}{" "}
                             {comment.reactionsCount === 1 ? "like" : "likes"}
                           </span>
                         )}
@@ -590,7 +590,7 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
                           className={`like-btn ${likedComments[comment._id] ? "liked" : ""}`}
                           onClick={() => handleLikeComment(comment._id)}
                         >
-                          {likedComments[comment._id] ? "❤️ Liked" : "🤍 Like"}
+                          {likedComments[comment._id] ? "Liked" : "Like"}
                         </button>
 
                         {comment.author?._id === user?._id && (
@@ -692,7 +692,7 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
                                     <div className="comment-likes">
                                       {reply.reactionsCount > 0 && (
                                         <span>
-                                          ❤️ {reply.reactionsCount}{" "}
+                                          {reply.reactionsCount}{" "}
                                           {reply.reactionsCount === 1
                                             ? "like"
                                             : "likes"}
@@ -734,8 +734,8 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
                                         }
                                       >
                                         {likedComments[reply._id]
-                                          ? "❤️ Liked"
-                                          : "🤍 Like"}
+                                          ? "Liked"
+                                          : "Like"}
                                       </button>
 
                                       {reply.author?._id === user?._id && (
@@ -798,7 +798,7 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
             {!hasMoreComments && comments.length > 0 && (
               <div className="end-of-comments">
                 <div className="end-line"></div>
-                <p>✨ You've seen all {totalComments} comments ✨</p>
+                <p>You have seen all {totalComments} comments</p>
                 <div className="end-line"></div>
               </div>
             )}
@@ -810,33 +810,34 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
       <style jsx>{`
         .comment-section {
           width: 100%;
-          margin-top: 16px;
+          margin-top: 12px;
         }
 
         /* Comment Input */
         .comment-input-wrapper {
-          background: #f9fafb;
-          border-radius: 16px;
-          padding: 16px;
-          margin-bottom: 20px;
+          background: var(--cc-surface-soft);
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
+          padding: 12px;
+          margin-bottom: 16px;
           transition: all 0.2s ease;
         }
 
         .comment-input-wrapper:focus-within {
-          background: white;
-          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+          background: var(--cc-surface);
+          box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
         }
 
         .replying-badge {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          background: #eef2ff;
+          background: var(--cc-primary-soft);
           padding: 8px 12px;
-          border-radius: 10px;
+          border-radius: var(--cc-radius);
           margin-bottom: 12px;
           font-size: 12px;
-          color: #4f46e5;
+          color: var(--cc-primary);
         }
 
         .replying-badge span {
@@ -869,14 +870,14 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
         }
 
         .avatar-placeholder-sm {
-          width: 36px;
-          height: 36px;
+          width: 32px;
+          height: 32px;
           border-radius: 50%;
-          background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+          background: linear-gradient(135deg, var(--cc-primary-soft), var(--cc-accent-soft));
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #4f46e5;
+          color: var(--cc-primary);
           font-weight: 600;
           font-size: 14px;
         }
@@ -886,22 +887,22 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
           position: relative;
         }
 
-        .comment-input {
-          width: 100%;
-          padding: 10px 80px 10px 12px;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
+          .comment-input {
+            width: 100%;
+            padding: 10px 80px 10px 12px;
+          border: 1px solid var(--cc-border);
+          border-radius: var(--cc-radius);
           font-size: 14px;
           font-family: inherit;
           resize: none;
           transition: all 0.2s ease;
-          background: white;
+          background: var(--cc-surface);
         }
 
         .comment-input:focus {
           outline: none;
-          border-color: #667eea;
-          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+          border-color: var(--cc-primary);
+          box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
         }
 
         .post-comment-btn {
@@ -913,9 +914,9 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
           align-items: center;
           gap: 6px;
           padding: 6px 14px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, var(--cc-primary), var(--cc-accent));
           border: none;
-          border-radius: 10px;
+          border-radius: var(--cc-radius);
           font-size: 13px;
           font-weight: 600;
           color: white;
@@ -925,7 +926,7 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
 
         .post-comment-btn:hover:not(:disabled) {
           transform: translateY(-50%) scale(1.02);
-          box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+          box-shadow: 0 2px 8px rgba(15, 118, 110, 0.24);
         }
 
         .post-comment-btn:disabled {
@@ -963,7 +964,7 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
         }
 
         .comments-count svg {
-          color: #667eea;
+          color: var(--cc-primary);
         }
 
         .loaded-info {
@@ -974,7 +975,7 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
 
         /* Comments List */
         .comments-list {
-          max-height: 500px;
+          max-height: min(520px, 68vh);
           overflow-y: auto;
           padding-right: 8px;
         }
@@ -997,8 +998,8 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
         .comment-item {
           display: flex;
           gap: 12px;
-          padding: 14px 0;
-          border-bottom: 1px solid #f3f4f6;
+          padding: 12px 0;
+          border-bottom: 1px solid var(--cc-border);
           animation: fadeIn 0.3s ease forwards;
           opacity: 0;
         }
@@ -1016,8 +1017,8 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
 
         .comment-item.temp-comment {
           opacity: 0.7;
-          background: #fefce8;
-          border-radius: 12px;
+          background: var(--cc-warning-soft);
+          border-radius: var(--cc-radius);
           padding: 12px;
           margin-bottom: 8px;
         }
@@ -1027,9 +1028,9 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
           cursor: pointer;
         }
 
-        .comment-avatar img {
-          width: 36px;
-          height: 36px;
+          .comment-avatar img {
+          width: 32px;
+          height: 32px;
           border-radius: 50%;
           object-fit: cover;
         }
@@ -1074,11 +1075,16 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
         }
 
         .author-name:hover {
-          color: #667eea;
+          color: var(--cc-primary);
         }
 
-        .author-badge {
-          font-size: 12px;
+          .author-badge {
+          padding: 2px 7px;
+          border-radius: 999px;
+          background: var(--cc-surface-soft);
+          color: var(--cc-muted-strong);
+          font-size: 11px;
+          font-weight: 750;
         }
 
         .comment-time {
@@ -1095,10 +1101,10 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
           background: none;
           border: none;
           font-size: 12px;
-          font-weight: 500;
+          font-weight: 650;
           cursor: pointer;
           padding: 4px 8px;
-          border-radius: 8px;
+          border-radius: var(--cc-radius);
           transition: all 0.2s ease;
         }
 
@@ -1107,8 +1113,8 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
         }
 
         .reply-btn:hover {
-          background: #f3f4f6;
-          color: #4f46e5;
+          background: var(--cc-surface-soft);
+          color: var(--cc-primary-dark);
         }
 
         .like-btn {
@@ -1116,7 +1122,7 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
         }
 
         .like-btn:hover {
-          background: #f3f4f6;
+          background: var(--cc-surface-soft);
           color: #ef4444;
         }
 
@@ -1146,7 +1152,7 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
         }
 
         .reply-tag {
-          color: #4f46e5;
+          color: var(--cc-primary-dark);
           font-weight: 600;
           margin-right: 6px;
         }
@@ -1163,7 +1169,7 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
           border: none;
           font-size: 12px;
           font-weight: 500;
-          color: #667eea;
+          color: var(--cc-primary);
           cursor: pointer;
           padding: 4px 8px;
           border-radius: 8px;
@@ -1171,20 +1177,20 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
         }
 
         .view-replies-btn:hover {
-          background: #eef2ff;
+          background: var(--cc-primary-soft);
         }
 
         .replies-list {
           margin-top: 12px;
-          padding-left: 20px;
-          border-left: 2px solid #e5e7eb;
+          padding-left: 16px;
+          border-left: 2px solid var(--cc-border);
         }
 
         .reply-item {
           display: flex;
           gap: 10px;
           padding: 10px 0;
-          border-top: 1px solid #f3f4f6;
+          border-top: 1px solid var(--cc-border);
         }
 
         .reply-item:first-child {
@@ -1258,7 +1264,7 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
           width: 24px;
           height: 24px;
           border: 2px solid #f3f4f6;
-          border-top-color: #667eea;
+          border-top-color: var(--cc-primary);
           border-radius: 50%;
           margin: 0 auto 8px;
           animation: spin 0.6s linear infinite;
@@ -1275,7 +1281,7 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
           align-items: center;
           justify-content: center;
           gap: 16px;
-          padding: 20px;
+          padding: 18px 0 4px;
         }
 
         .end-line {
@@ -1294,17 +1300,18 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
         /* No Comments State */
         .no-comments {
           text-align: center;
-          padding: 40px 20px;
-          background: #f9fafb;
-          border-radius: 16px;
+          padding: 32px 18px;
+          background: var(--cc-surface-soft);
+          border: 1px dashed var(--cc-border-strong);
+          border-radius: var(--cc-radius);
         }
 
         .no-comments-icon {
-          width: 80px;
-          height: 80px;
+          width: 60px;
+          height: 60px;
           margin: 0 auto 16px;
-          background: #f3f4f6;
-          border-radius: 50%;
+          background: var(--cc-surface);
+          border-radius: var(--cc-radius);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1367,7 +1374,7 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
           }
 
           .author-name:active {
-            color: #667eea;
+            color: var(--cc-primary);
           }
         }
 

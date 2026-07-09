@@ -388,14 +388,10 @@ const updatePost = async (req, res) => {
     let attachmentUrls = post.attachments || [];
 
     if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        try {
-          const result = await uploadToCloudinary(file.buffer, "feed-posts");
-          attachmentUrls.push(result.secure_url);
-        } catch (uploadError) {
-          console.error("Image upload failed:", uploadError);
-        }
-      }
+      attachmentUrls = [
+        ...attachmentUrls,
+        ...req.files.map((file) => file.path),
+      ];
     }
 
     if (attachments && Array.isArray(attachments)) {

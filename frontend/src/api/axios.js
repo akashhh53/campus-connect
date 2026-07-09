@@ -1,7 +1,10 @@
 import axios from "axios";
 
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: API_BASE_URL,
 
   withCredentials: true,
 
@@ -47,7 +50,7 @@ axiosInstance.interceptors.response.use(
 
       try {
         const refresh = await axios.post(
-          `${import.meta.env.VITE_API_BASE_URL}/user/refresh`,
+          `${API_BASE_URL}/user/refresh`,
 
           {},
 

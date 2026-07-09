@@ -3,6 +3,7 @@ import socket from "./socket/socket";
 import { useEffect } from "react";
 
 import LoginPage from "./pages/LoginPage";
+import Signup from "./pages/Signup";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
 import ModuleProtectedRoute from "./routes/ModuleProtectedRoute";
@@ -74,6 +75,7 @@ const App = () => {
       {/* FIXED ROOT REDIRECT */}
       <Route path="/" element={<Navigate to="/dashboard/feed" replace />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<Signup />} />
 
       <Route
         path="/dashboard"
