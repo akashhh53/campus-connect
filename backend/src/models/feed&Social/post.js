@@ -80,7 +80,9 @@ const postSchema = new mongoose.Schema(
 
 // Indexes for performance
 postSchema.index({ collegeId: 1, visibility: 1, createdAt: -1 });
+postSchema.index({ collegeId: 1, isDeleted: 1, roleAllowed: 1, createdAt: -1 });
 postSchema.index({ author: 1, module: 1 });
+postSchema.index({ author: 1, isDeleted: 1, createdAt: -1 });
 postSchema.index({ isDeleted: 1 });
 
 module.exports = mongoose.model("Post", postSchema);

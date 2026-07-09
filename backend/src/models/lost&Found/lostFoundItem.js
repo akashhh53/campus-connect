@@ -63,6 +63,8 @@ const lostFoundItemSchema = new mongoose.Schema(
 
 // Indexes
 lostFoundItemSchema.index({ collegeId: 1, status: 1, type: 1 });
+lostFoundItemSchema.index({ collegeId: 1, isDeleted: 1, createdAt: -1 });
+lostFoundItemSchema.index({ collegeId: 1, isDeleted: 1, type: 1, status: 1, createdAt: -1 });
 lostFoundItemSchema.index({ reportedBy: 1, createdAt: -1 });
 
 module.exports = mongoose.model("LostFoundItem", lostFoundItemSchema);

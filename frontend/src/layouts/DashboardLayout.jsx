@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { NavLink, Outlet } from "react-router";
-import { FiMenu, FiX } from "react-icons/fi";
 
 import Topbar from "../components/Topbar";
 import { getMyChats } from "../services/chatService";
@@ -70,12 +69,14 @@ const DashboardLayout = () => {
 
     socket.on("new_message", refreshUnread);
     socket.on("chat_updated", refreshUnread);
+    window.addEventListener("cc:chat-updated", refreshUnread);
     window.addEventListener("focus", loadUnread);
 
     return () => {
       alive = false;
       socket.off("new_message", refreshUnread);
       socket.off("chat_updated", refreshUnread);
+      window.removeEventListener("cc:chat-updated", refreshUnread);
       window.removeEventListener("focus", loadUnread);
     };
   }, [user?._id]);
@@ -146,6 +147,8 @@ const DashboardLayout = () => {
       <div className="dashboard-content">
         <Topbar
           chatUnread={chatUnread}
+          isSidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen((value) => !value)}
           onToggleTheme={() =>
             setTheme((currentTheme) =>
               currentTheme === "dark" ? "light" : "dark",
@@ -157,15 +160,6 @@ const DashboardLayout = () => {
           <Outlet />
         </div>
       </div>
-
-      <button
-        aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
-        className="mobile-menu-button"
-        onClick={() => setSidebarOpen((value) => !value)}
-        type="button"
-      >
-        {sidebarOpen ? <FiX /> : <FiMenu />}
-      </button>
     </div>
   );
 };

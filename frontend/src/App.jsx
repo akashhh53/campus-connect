@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router";
+import { Routes, Route, Navigate, useLocation } from "react-router";
 import socket from "./socket/socket";
 import { useEffect } from "react";
 
@@ -30,6 +30,21 @@ import SavedPostsPage from "./pages/profile/SavedPostsPage";
 import UserProfilePage from "./pages/dashboard/UserProfilePage";
 
 const App = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.hash) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document
+        .querySelector(".dashboard-outlet")
+        ?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
+  }, [location.pathname, location.search, location.hash]);
+
   useEffect(() => {
   if (!socket.connected) {
     socket.connect();

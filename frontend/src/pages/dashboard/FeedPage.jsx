@@ -13,7 +13,11 @@ import {
 
 import CreatePost from "../../components/feed/CreatePost";
 import PostCard from "../../components/feed/PostCard";
-import { createPost, getFeedPosts } from "../../services/feedService";
+import {
+  createPost,
+  getCachedFeedPosts,
+  getFeedPosts,
+} from "../../services/feedService";
 import { searchUsers } from "../../services/searchService";
 
 const FeedPage = () => {
@@ -39,21 +43,34 @@ const FeedPage = () => {
   const [results, setResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const userInitial = user?.name?.charAt(0)?.toUpperCase() || "U";
 
   const fetchPosts = useCallback(
-    async (currentPage = 1, append = false) => {
+    async (currentPage = 1, append = false, force = false) => {
+      const cached =
+        currentPage === 1 && !append && !force
+          ? getCachedFeedPosts(currentPage)
+          : null;
+
       try {
-        if (currentPage === 1) {
+        if (cached) {
+          setPosts(cached.posts || []);
+          setHasNext(Boolean(cached.pagination?.hasNext));
+          setPage(currentPage);
+          setError("");
+          setLoading(false);
+          setInitialLoading(false);
+        } else if (currentPage === 1) {
           setLoading(true);
           setInitialLoading(true);
         } else {
           setLoadingMore(true);
         }
 
-        const data = await getFeedPosts(currentPage);
+        const data = await getFeedPosts(currentPage, 10, {
+          force: force || Boolean(cached),
+        });
 
         setPosts((prev) =>
           append ? [...prev, ...(data.posts || [])] : data.posts || [],
@@ -62,7 +79,9 @@ const FeedPage = () => {
         setPage(currentPage);
         setError("");
       } catch (err) {
-        setError(err.response?.data?.message || "Failed to fetch posts");
+        if (!cached) {
+          setError(err.response?.data?.message || "Failed to fetch posts");
+        }
       } finally {
         setLoading(false);
         setInitialLoading(false);
@@ -108,7 +127,7 @@ const FeedPage = () => {
     }, 0);
 
     return () => window.clearTimeout(initialLoad);
-  }, [fetchPosts, refreshKey]);
+  }, [fetchPosts]);
 
   useEffect(() => {
     return () => debouncedSearch.cancel();
@@ -180,7 +199,7 @@ const FeedPage = () => {
   };
 
   const refreshFeed = () => {
-    setRefreshKey((prev) => prev + 1);
+    fetchPosts(1, false, true);
   };
 
   const handleImageClick = (event) => {

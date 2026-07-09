@@ -190,6 +190,8 @@ userSchema.virtual("age").get(function () {
 ========================= */
 
 userSchema.index({ "otp.expiresAt": 1 });
+userSchema.index({ collegeId: 1, isBlocked: 1, name: 1 });
+userSchema.index({ collegeId: 1, isBlocked: 1, email: 1 });
 
 /* =========================
    EXPORT

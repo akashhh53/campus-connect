@@ -31,5 +31,7 @@ const reactionSchema = new mongoose.Schema(
 
 // Unique reaction per user per target
 reactionSchema.index({ postId: 1, commentId: 1, userId: 1 }, { unique: true });
+reactionSchema.index({ postId: 1, commentId: 1, type: 1 });
+reactionSchema.index({ commentId: 1, type: 1, userId: 1 });
 
 module.exports = mongoose.model("Reaction", reactionSchema);

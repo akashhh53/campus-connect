@@ -6,9 +6,11 @@ import {
   FiBookmark,
   FiChevronDown,
   FiLogOut,
+  FiMenu,
   FiMessageCircle,
   FiMoon,
   FiSun,
+  FiX,
   FiUser,
 } from "react-icons/fi";
 
@@ -17,7 +19,13 @@ import { logoutUser } from "../services/authService";
 import { getNotifications, markRead } from "../services/notificationService";
 import socket from "../socket/socket";
 
-const Topbar = ({ chatUnread = 0, onToggleTheme, theme = "light" }) => {
+const Topbar = ({
+  chatUnread = 0,
+  isSidebarOpen = false,
+  onToggleSidebar,
+  onToggleTheme,
+  theme = "light",
+}) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
@@ -241,6 +249,17 @@ const Topbar = ({ chatUnread = 0, onToggleTheme, theme = "light" }) => {
 
   return (
     <header className="topbar">
+      {onToggleSidebar && (
+        <button
+          aria-label={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+          className="mobile-menu-button"
+          onClick={onToggleSidebar}
+          type="button"
+        >
+          {isSidebarOpen ? <FiX /> : <FiMenu />}
+        </button>
+      )}
+
       <button
         className="topbar-brand"
         onClick={() => navigate("/dashboard")}

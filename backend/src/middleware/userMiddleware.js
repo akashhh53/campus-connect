@@ -23,7 +23,9 @@ const userMiddleware = async (req, res, next) => {
 
     // Check Redis blocklist
 
-    const isBlocked = await redisClient.exists(`token:${token}`);
+    const isBlocked = redisClient.isReady
+      ? await redisClient.exists(`token:${token}`)
+      : false;
 
     if (isBlocked) {
       return res.status(401).json({

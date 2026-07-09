@@ -75,4 +75,10 @@ messageSchema.index({
   createdAt: -1,
 });
 
+messageSchema.index({
+  chatRoomId: 1,
+  sender: 1,
+  status: 1,
+});
+
 module.exports = mongoose.model("Message", messageSchema);

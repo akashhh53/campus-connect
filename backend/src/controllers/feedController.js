@@ -8,6 +8,78 @@ const Block = require("../models/feed&Social/block");
 const { createNotification, deleteNotification, deleteNotificationsByPost } = require("../utils/notificationHelper");
 const SavedPost = require("../models/feed&Social/savedPost");
 
+const mapCountsById = (rows) =>
+  new Map(rows.map((row) => [String(row._id), row.count]));
+
+const enrichPostsWithStats = async (posts, userId, { includeCommentCounts = false } = {}) => {
+  if (!posts.length) {
+    return [];
+  }
+
+  const postIds = posts.map((post) => post._id);
+
+  const [reactionRows, userReactions, savedRows, commentRows] = await Promise.all([
+    Reaction.aggregate([
+      {
+        $match: {
+          postId: { $in: postIds },
+          commentId: null,
+        },
+      },
+      { $group: { _id: "$postId", count: { $sum: 1 } } },
+    ]),
+    Reaction.find({
+      postId: { $in: postIds },
+      userId,
+      commentId: null,
+    })
+      .select("postId type")
+      .lean(),
+    SavedPost.find({
+      user: userId,
+      post: { $in: postIds },
+    })
+      .select("post")
+      .lean(),
+    includeCommentCounts
+      ? Comment.aggregate([
+          {
+            $match: {
+              postId: { $in: postIds },
+              isDeleted: false,
+            },
+          },
+          { $group: { _id: "$postId", count: { $sum: 1 } } },
+        ])
+      : Promise.resolve([]),
+  ]);
+
+  const reactionCountByPost = mapCountsById(reactionRows);
+  const commentCountByPost = mapCountsById(commentRows);
+  const reactionByPost = new Map(
+    userReactions.map((reaction) => [
+      String(reaction.postId),
+      reaction.type || true,
+    ]),
+  );
+  const savedPostIds = new Set(savedRows.map((saved) => String(saved.post)));
+
+  return posts.map((post) => {
+    const postObject = typeof post.toObject === "function" ? post.toObject() : post;
+    const postId = String(postObject._id);
+
+    return {
+      ...postObject,
+      reactionsCount: reactionCountByPost.get(postId) || 0,
+      commentsCount: includeCommentCounts
+        ? commentCountByPost.get(postId) || 0
+        : postObject.commentCount || 0,
+      userReaction: reactionByPost.get(postId) || null,
+      isSaved: savedPostIds.has(postId),
+    };
+  });
+};
+
 //update profile
 
 const updateUserProfile = async (req, res) => {
@@ -203,47 +275,17 @@ const getPosts = async (req, res) => {
       sort = { reactionsCount: -1 };
     }
 
-    const posts = await Post.find(filter)
-      .populate("author", "name email profilePicture role")
-      .sort(sort)
-      .skip(skip)
-      .limit(limit);
+    const [posts, total] = await Promise.all([
+      Post.find(filter)
+        .populate("author", "name email profilePicture role")
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Post.countDocuments(filter),
+    ]);
 
-    const postsWithStats = await Promise.all(
-      posts.map(async (post) => {
-        const reactions = await Reaction.countDocuments({
-          postId: post._id,
-          commentId: null,
-        });
-
-        // ✅ USE CACHED commentCount from Post schema instead of counting again
-        // const comments = await Comment.countDocuments({
-        //   postId: post._id,
-        //   isDeleted: false,
-        // });
-
-        const userReaction = await Reaction.findOne({
-          postId: post._id,
-          userId: user._id,
-          commentId: null,
-        });
-        const saved = await SavedPost.exists({
-          user: user._id,
-
-          post: post._id,
-        });
-
-        return {
-          ...post.toObject(),
-          reactionsCount: reactions,
-          commentsCount: post.commentCount || 0, // ✅ Use cached field
-          userReaction: userReaction?.type || null,
-          isSaved: !!saved,
-        };
-      }),
-    );
-
-    const total = await Post.countDocuments(filter);
+    const postsWithStats = await enrichPostsWithStats(posts, user._id);
 
     res.json({
       success: true,
@@ -277,7 +319,7 @@ const getPostById = async (req, res) => {
     const post = await Post.findById(id).populate(
       "author",
       "name email profilePicture role",
-    );
+    ).lean();
 
     if (!post || post.isDeleted) {
       return res.status(404).json({
@@ -300,34 +342,13 @@ const getPostById = async (req, res) => {
       });
     }
 
-    const reactions = await Reaction.countDocuments({
-      postId: post._id,
-      commentId: null,
-    });
-    const comments = await Comment.countDocuments({
-      postId: post._id,
-      isDeleted: false,
-    });
-    const userReaction = await Reaction.findOne({
-      postId: post._id,
-      userId: user._id,
-      commentId: null,
-    });
-    const saved = await SavedPost.exists({
-      user: user._id,
-
-      post: post._id,
+    const [postWithStats] = await enrichPostsWithStats([post], user._id, {
+      includeCommentCounts: true,
     });
 
     res.json({
       success: true,
-      post: {
-        ...post.toObject(),
-        reactionsCount: reactions,
-        commentsCount: comments,
-        userReaction: userReaction?.type || null,
-        isSaved: !!saved,
-      },
+      post: postWithStats,
     });
   } catch (error) {
     console.error("Get Post By ID Error:", error);
@@ -646,54 +667,24 @@ const getMyPosts = async (req, res) => {
 
     // Fetch Posts
 
-    const posts = await Post.find(filter)
-      .populate("author", "name email profilePicture")
-      .sort(sort)
-      .skip(skip)
-      .limit(limit);
+    const [posts, total] = await Promise.all([
+      Post.find(filter)
+        .populate("author", "name email profilePicture")
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Post.countDocuments(filter),
+    ]);
 
-    // Add counts + current user reaction
-
-    const postsWithStats = await Promise.all(
-      posts.map(async (post) => {
-        const reactions = await Reaction.countDocuments({
-          postId: post._id,
-          commentId: null,
-        });
-
-        const comments = await Comment.countDocuments({
-          postId: post._id,
-
-          isDeleted: false,
-        });
-
-        const userReaction = await Reaction.findOne({
-          postId: post._id,
-
-          userId: user._id,
-
-          type: "like",
-        });
-        const saved = await SavedPost.exists({
-          user: user._id,
-
-          post: post._id,
-        });
-
-        return {
-          ...post.toObject(),
-
-          reactionsCount: reactions,
-
-          commentsCount: comments,
-
-          userReaction: !!userReaction,
-          isSaved: !!saved,
-        };
-      }),
-    );
-
-    const total = await Post.countDocuments(filter);
+    const postsWithStats = (
+      await enrichPostsWithStats(posts, user._id, {
+        includeCommentCounts: true,
+      })
+    ).map((post) => ({
+      ...post,
+      userReaction: !!post.userReaction,
+    }));
 
     res.json({
       success: true,
@@ -746,7 +737,7 @@ const addComment = async (req, res) => {
       });
     }
 
-    const post = await Post.findById(postId);
+    const post = await Post.findById(postId).select("collegeId").lean();
 
     if (!post) {
       return res.status(404).json({
@@ -839,67 +830,89 @@ const getComments = async (req, res) => {
 
     const prioritizeMine = req.query.prioritizeMine === "true";
     // ROOT COMMENTS
-    let comments = await Comment.find({
-  postId,
-  isDeleted: false,
-  parentCommentId: null,
-})
-  .populate("author", "name profilePicture role")
-  .sort({ createdAt: -1 })
-  .skip(skip)
-  .limit(limit);
+    const rootFilter = {
+      postId,
+      isDeleted: false,
+      parentCommentId: null,
+    };
 
-    const commentsWithReplies = await Promise.all(
-      comments.map(async (comment) => {
-        const reactionsCount = await Reaction.countDocuments({
-          commentId: comment._id,
-          type: "like",
-        });
+    const [comments, rootCommentsCount, repliesCount] = await Promise.all([
+      Comment.find(rootFilter)
+        .populate("author", "name profilePicture role")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Comment.countDocuments(rootFilter),
+      Comment.countDocuments({
+        postId,
+        isDeleted: false,
+        parentCommentId: { $ne: null },
+      }),
+    ]);
 
-        const isLikedByUser = !!(await Reaction.findOne({
-          commentId: comment._id,
-          userId: user._id,
-          type: "like",
-        }));
-
-        // REPLIES
-        const repliesRaw = await Comment.find({
-          parentCommentId: comment._id,
+    const rootCommentIds = comments.map((comment) => comment._id);
+    const repliesRaw = rootCommentIds.length
+      ? await Comment.find({
+          parentCommentId: { $in: rootCommentIds },
           isDeleted: false,
         })
           .populate("author", "name profilePicture role")
           .populate("replyToUser", "name")
-          .sort({ createdAt: 1 });
+          .sort({ createdAt: 1 })
+          .lean()
+      : [];
 
-        const replies = await Promise.all(
-          repliesRaw.map(async (reply) => {
-            const likes = await Reaction.countDocuments({
-              commentId: reply._id,
-              type: "like",
-            });
+    const allCommentIds = [
+      ...rootCommentIds,
+      ...repliesRaw.map((reply) => reply._id),
+    ];
 
-            const liked = !!(await Reaction.findOne({
-              commentId: reply._id,
-              userId: user._id,
-              type: "like",
-            }));
+    const [reactionRows, likedRows] = allCommentIds.length
+      ? await Promise.all([
+          Reaction.aggregate([
+            {
+              $match: {
+                commentId: { $in: allCommentIds },
+                type: "like",
+              },
+            },
+            { $group: { _id: "$commentId", count: { $sum: 1 } } },
+          ]),
+          Reaction.find({
+            commentId: { $in: allCommentIds },
+            userId: user._id,
+            type: "like",
+          })
+            .select("commentId")
+            .lean(),
+        ])
+      : [[], []];
 
-            return {
-              ...reply.toObject(),
-              reactionsCount: likes,
-              isLikedByUser: liked,
-            };
-          }),
-        );
-
-        return {
-          ...comment.toObject(),
-          replies,
-          reactionsCount,
-          isLikedByUser,
-        };
-      }),
+    const reactionCountByComment = mapCountsById(reactionRows);
+    const likedCommentIds = new Set(
+      likedRows.map((reaction) => String(reaction.commentId)),
     );
+    const repliesByParent = new Map();
+
+    repliesRaw.forEach((reply) => {
+      const parentId = String(reply.parentCommentId);
+      const replies = repliesByParent.get(parentId) || [];
+
+      replies.push({
+        ...reply,
+        reactionsCount: reactionCountByComment.get(String(reply._id)) || 0,
+        isLikedByUser: likedCommentIds.has(String(reply._id)),
+      });
+      repliesByParent.set(parentId, replies);
+    });
+
+    const commentsWithReplies = comments.map((comment) => ({
+      ...comment,
+      replies: repliesByParent.get(String(comment._id)) || [],
+      reactionsCount: reactionCountByComment.get(String(comment._id)) || 0,
+      isLikedByUser: likedCommentIds.has(String(comment._id)),
+    }));
 
     let finalComments = [...commentsWithReplies];
 
@@ -930,20 +943,6 @@ else if (prioritizeMine) {
     return 0;
   });
 }
-    // 🔥 FIX 1: Count root comments
-    const rootCommentsCount = await Comment.countDocuments({
-      postId,
-      isDeleted: false,
-      parentCommentId: null,
-    });
-
-    // 🔥 FIX 2: Count all replies
-    const repliesCount = await Comment.countDocuments({
-      postId,
-      isDeleted: false,
-      parentCommentId: { $ne: null }, // Not null means replies
-    });
-
     // 🔥 FIX 3: Total = root comments + replies
     const totalCommentsWithReplies = rootCommentsCount + repliesCount;
 
@@ -1796,19 +1795,18 @@ const getNotifications = async (req, res) => {
       ],
     };
 
-    // Get notifications
-    const notifications = await Notification.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    // Get unread count
-    const unreadCount = await Notification.countDocuments({
-      ...query,
-      isRead: false,
-    });
-
-    const total = await Notification.countDocuments(query);
+    const [notifications, unreadCount, total] = await Promise.all([
+      Notification.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Notification.countDocuments({
+        ...query,
+        isRead: false,
+      }),
+      Notification.countDocuments(query),
+    ]);
 
     res.json({
       success: true,
@@ -2939,26 +2937,25 @@ const getSavedPosts = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    // First, get total count of saved posts
-    const totalSaved = await SavedPost.countDocuments({
-      user: user._id,
-    });
-
-    // Get paginated saved posts
-    const saved = await SavedPost.find({
-      user: user._id,
-    })
-      .sort({ createdAt: -1 }) // Latest first
-      .skip(skip)
-      .limit(limit)
-      .populate({
-        path: "post",
-        populate: {
-          path: "author",
-          select: "name email profilePicture role",
-        },
+    const [totalSaved, saved] = await Promise.all([
+      SavedPost.countDocuments({
+        user: user._id,
+      }),
+      SavedPost.find({
+        user: user._id,
       })
-      .lean();
+        .sort({ createdAt: -1 }) // Latest first
+        .skip(skip)
+        .limit(limit)
+        .populate({
+          path: "post",
+          populate: {
+            path: "author",
+            select: "name email profilePicture role",
+          },
+        })
+        .lean(),
+    ]);
 
     // Extract posts from saved references
     const posts = saved.map((x) => x.post).filter(Boolean);

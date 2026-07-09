@@ -76,6 +76,13 @@ commentSchema.index({
 });
 
 commentSchema.index({
+  postId: 1,
+  isDeleted: 1,
+  parentCommentId: 1,
+  createdAt: -1,
+});
+
+commentSchema.index({
   author: 1,
   isDeleted: 1,
 });

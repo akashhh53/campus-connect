@@ -341,9 +341,17 @@ app.use("/chat", chatRoutes);
 
 const InitializeConnection = async () => {
   try {
-    await Promise.all([main(), redisClient.connect()]);
+    await main();
 
-    console.log("Connected to MongoDB and Redis");
+    try {
+      if (!redisClient.isOpen) {
+        await redisClient.connect();
+      }
+
+      console.log("Connected to MongoDB and Redis");
+    } catch (redisError) {
+      console.warn("Connected to MongoDB. Redis cache is unavailable:", redisError.message);
+    }
 
     server.listen(
       process.env.PORT,

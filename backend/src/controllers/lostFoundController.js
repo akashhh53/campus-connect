@@ -242,15 +242,16 @@ const getAllItems = async (req, res) => {
     }
 
     // 9. Execute query
-    const items = await LostFoundItem.find(filter)
-      .populate("reportedBy", "name email phone")
-      .populate("claimedBy", "name email phone")
-      .sort(sort)
-      .skip(skip)
-      .limit(limit);
-
-    // 10. Get total count for pagination
-    const total = await LostFoundItem.countDocuments(filter);
+    const [items, total] = await Promise.all([
+      LostFoundItem.find(filter)
+        .populate("reportedBy", "name email phone")
+        .populate("claimedBy", "name email phone")
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      LostFoundItem.countDocuments(filter),
+    ]);
 
     // 11. Send response with metadata
     res.json({
@@ -345,14 +346,15 @@ const getMyItems = async (req, res) => {
     }
 
     // 7. Execute query
-    const items = await LostFoundItem.find(filter)
-      .populate("claimedBy", "name email phone")
-      .sort(sort)
-      .skip(skip)
-      .limit(limit);
-
-    // 8. Get total count
-    const total = await LostFoundItem.countDocuments(filter);
+    const [items, total] = await Promise.all([
+      LostFoundItem.find(filter)
+        .populate("claimedBy", "name email phone")
+        .sort(sort)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      LostFoundItem.countDocuments(filter),
+    ]);
 
     // 9. Send response
     res.json({

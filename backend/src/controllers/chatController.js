@@ -270,7 +270,8 @@ const getMessages = async (req, res) => {
 
       .skip((page - 1) * limit)
 
-      .limit(limit);
+      .limit(limit)
+      .lean();
 
     res.json({
       success: true,
@@ -294,47 +295,58 @@ const getMyChats = async (req, res) => {
 
     const rooms = await ChatParticipant.find({
       userId: user._id,
-    }).populate({
-      path: "chatRoomId",
-
-      populate: {
-        path: "lastMessage",
+    })
+      .populate({
+        path: "chatRoomId",
 
         populate: {
-          path: "sender",
+          path: "lastMessage",
 
-          select: "_id name",
+          populate: {
+            path: "sender",
+
+            select: "_id name",
+          },
         },
-      },
-    });
+      })
+      .lean();
 
-    const chats = await Promise.all(
-      rooms.map(async (r) => {
-        const room = r.chatRoomId;
-
-        if (!room || !room.lastMessage) return null;
-
-        const members = await ChatParticipant.find({
-          chatRoomId: room._id,
-        }).populate("userId", "_id name profilePicture");
-
-        const other = members.find(
-          (m) => m.userId._id.toString() !== user._id.toString(),
-        );
-
-        return {
-          roomId: room._id,
-
-          user: other?.userId,
-
-          lastMessage: room.lastMessage?.content || "",
-
-          lastMessageAt: room.lastMessageAt,
-
-          unreadCount: r.unreadCount,
-        };
-      }),
+    const activeRooms = rooms
+      .map((participant) => participant.chatRoomId)
+      .filter((room) => room && room.lastMessage);
+    const roomIds = activeRooms.map((room) => room._id);
+    const otherParticipants = roomIds.length
+      ? await ChatParticipant.find({
+          chatRoomId: { $in: roomIds },
+          userId: { $ne: user._id },
+        })
+          .populate("userId", "_id name profilePicture")
+          .lean()
+      : [];
+    const otherUserByRoom = new Map(
+      otherParticipants.map((participant) => [
+        String(participant.chatRoomId),
+        participant.userId,
+      ]),
     );
+
+    const chats = rooms.map((participant) => {
+      const room = participant.chatRoomId;
+
+      if (!room || !room.lastMessage) return null;
+
+      return {
+        roomId: room._id,
+
+        user: otherUserByRoom.get(String(room._id)),
+
+        lastMessage: room.lastMessage?.content || "",
+
+        lastMessageAt: room.lastMessageAt,
+
+        unreadCount: participant.unreadCount,
+      };
+    });
 
     res.json({
       success: true,

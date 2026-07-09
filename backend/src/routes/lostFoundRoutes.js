@@ -3,6 +3,10 @@ const router = express.Router();
 const userMiddleware = require('../middleware/userMiddleware');
 const { requireModule } = require('../middleware/moduleAccess');
 const {
+  bumpCacheNamespaces,
+  cacheResponse,
+} = require('../middleware/cacheMiddleware');
+const {
   reportLostItem,
   reportFoundItem,
   getAllItems,
@@ -15,6 +19,8 @@ const {
 } = require('../controllers/lostFoundController');
 const {upload}  = require('../config/cloudinary');
 
+const bumpLostFoundCache = bumpCacheNamespaces(['lost-found']);
+
 // All routes require authentication
 router.use(userMiddleware);
 router.use(requireModule('lostFound'));
@@ -23,12 +29,14 @@ router.use(requireModule('lostFound'));
 router.post(
   '/lost-found/report-lost',
   upload.array('images', 5), // 'images' is the field name in form-data
+  bumpLostFoundCache,
   reportLostItem
 );
 
 router.post(
   '/lost-found/report-found',
   upload.array('images', 5),
+  bumpLostFoundCache,
   reportFoundItem
 );
 
@@ -44,7 +52,7 @@ router.post(
 // Sorting - Newest items first
 
 // Populated data - Shows reporter and claimant details
-router.get('/lost-found/items', getAllItems);
+router.get('/lost-found/items', cacheResponse('lost-found', 30), getAllItems);
 
 
 // What below API Does:
@@ -59,7 +67,7 @@ router.get('/lost-found/items', getAllItems);
 // Pagination support - Controls items per page
 
 // Sorting - Newest items first
-router.get('/lost-found/my-items', getMyItems);
+router.get('/lost-found/my-items', cacheResponse('lost-found', 20), getMyItems);
 
 
 
@@ -73,7 +81,7 @@ router.get('/lost-found/my-items', getMyItems);
 // Security check - Ensures item belongs to user's college
 
 // Error handling - Handles invalid IDs and not found cases
-router.get('/lost-found/items/:id', getItemById); 
+router.get('/lost-found/items/:id', cacheResponse('lost-found', 45), getItemById); 
 
 
 
@@ -89,7 +97,7 @@ router.get('/lost-found/items/:id', getItemById);
 // Ownership check - Only reporter can update
 
 // Status check - Only pending items can be updated
-router.put('/lost-found/items/:id', upload.array('images', 5), updateItem);
+router.put('/lost-found/items/:id', upload.array('images', 5), bumpLostFoundCache, updateItem);
 
 
 // What below API Does:
@@ -100,7 +108,7 @@ router.put('/lost-found/items/:id', upload.array('images', 5), updateItem);
 // Validation - Checks if item exists and ID is valid
 
 // Hides from Queries - Deleted items are filtered out in all GET requests
-router.delete('/lost-found/items/:id', deleteItem);
+router.delete('/lost-found/items/:id', bumpLostFoundCache, deleteItem);
 
 
 // What below API Does:
@@ -116,12 +124,12 @@ router.delete('/lost-found/items/:id', deleteItem);
 
 // Records Claimant - Saves who claimed the item
 
-router.post('/lost-found/items/:id/claim', claimItem);
+router.post('/lost-found/items/:id/claim', bumpLostFoundCache, claimItem);
 
 
 
 
-router.put('/lost-found/items/:id/resolve', resolveItem);
+router.put('/lost-found/items/:id/resolve', bumpLostFoundCache, resolveItem);
 // router.put('/lost-found/items/:id/resolve', resolveItem);
 
 module.exports = router;

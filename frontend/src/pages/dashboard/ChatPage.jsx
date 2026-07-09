@@ -1,14 +1,18 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { joinRoom } from "../../socket/socket";
 import {
   openChat,
   sendMessage,
   getMessages,
   getMyChats,
+  getCachedMessages,
+  getCachedMyChats,
+  clearChatCache,
 } from "../../services/chatService";
 import { searchUsers as searchUsersService } from "../../services/searchService";
 import socket from "../../socket/socket";
 import { useNavigate } from "react-router";
+import { FiArrowLeft } from "react-icons/fi";
 
 // Helper function to get initials from name
 const getInitials = (name) => {
@@ -127,33 +131,61 @@ const ChatPage = () => {
   const unreadAnchorRef = useRef(null);
   const openChatRequestRef = useRef(0);
 
-  useEffect(() => {
-    const fetchChats = async ({ silent = false } = {}) => {
-      try {
-        if (!silent) {
-          setLoadingChats(true);
-        }
+  const refreshChats = useCallback(async ({ silent = false } = {}) => {
+    const cached = !silent ? getCachedMyChats() : null;
 
-        const data = await getMyChats();
-        setChats(data.chats || []);
-      } catch (err) {
-        console.log(err);
-      } finally {
-        if (!silent) {
-          setLoadingChats(false);
-        }
+    try {
+      if (cached) {
+        setChats(cached.chats || []);
+        setLoadingChats(false);
+      } else if (!silent) {
+        setLoadingChats(true);
       }
-    };
 
-    fetchChats();
+      const data = await getMyChats({
+        force: silent || Boolean(cached),
+      });
+      setChats(data.chats || []);
+    } catch (err) {
+      console.log(err);
+    } finally {
+      if (!silent) {
+        setLoadingChats(false);
+      }
+    }
+  }, []);
 
-    const refreshChats = () => fetchChats({ silent: true });
-    socket.on("chat_updated", refreshChats);
+  const notifyChatCounters = useCallback(() => {
+    window.dispatchEvent(new Event("cc:chat-updated"));
+  }, []);
+
+  const scrollMessagesToBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
+
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "auto",
+      block: "end",
+    });
+  }, []);
+
+  useEffect(() => {
+    const initialLoad = window.setTimeout(() => {
+      refreshChats();
+    }, 0);
+
+    const refreshChatList = () => refreshChats({ silent: true });
+    socket.on("chat_updated", refreshChatList);
 
     return () => {
-      socket.off("chat_updated", refreshChats);
+      window.clearTimeout(initialLoad);
+      socket.off("chat_updated", refreshChatList);
     };
-  }, []);
+  }, [refreshChats]);
 
   // ===== MESSAGE STATUS LISTENER =====
   useEffect(() => {
@@ -180,19 +212,14 @@ const ChatPage = () => {
 
   // ===== REAL-TIME MESSAGE LISTENER =====
   useEffect(() => {
-    // Helper to refresh chats from backend (single source of truth)
-    const refreshChats = async () => {
-      try {
-        const data = await getMyChats();
-        setChats(data.chats || []);
-      } catch (err) {
-        console.log(err);
-      }
-    };
-
     const receive = (msg) => {
+      clearChatCache(msg.chatRoomId);
+
       // Refresh chats from backend instead of local math
-      setTimeout(refreshChats, 150);
+      setTimeout(() => {
+        refreshChats({ silent: true });
+        notifyChatCounters();
+      }, 150);
 
       // Only add to messages if it's the current room
       if (String(msg.chatRoomId) === String(room?._id)) {
@@ -224,6 +251,14 @@ const ChatPage = () => {
             messageId: msg._id,
             roomId: room._id,
           });
+
+          if (currentUser?._id) {
+            socket.emit("message_seen", {
+              roomId: room._id,
+              userId: currentUser._id,
+            });
+            notifyChatCounters();
+          }
         }
       }
     };
@@ -233,7 +268,7 @@ const ChatPage = () => {
     return () => {
       socket.off("new_message", receive);
     };
-  }, [room?._id, currentUser?._id]);
+  }, [room?._id, currentUser?._id, notifyChatCounters, refreshChats]);
   // ===== END REAL-TIME MESSAGE LISTENER =====
 
   // ===== TYPING INDICATOR LISTENER =====
@@ -277,15 +312,12 @@ const ChatPage = () => {
 
     if (firstLoad.current || nearBottom) {
       requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "end",
-        });
+        scrollMessagesToBottom();
       });
 
       firstLoad.current = false;
     }
-  }, [messages.length]);
+  }, [messages.length, scrollMessagesToBottom]);
 
   const handleOpenChat = async (user) => {
     if (!user?._id) {
@@ -324,7 +356,21 @@ const ChatPage = () => {
       // Reset pageRef
       pageRef.current = 1;
 
-      const history = await getMessages(res.room._id, 1);
+      const cachedHistory = getCachedMessages(res.room._id, 1);
+
+      if (cachedHistory) {
+        setMessages(cachedHistory.messages ?? []);
+        setHasMore(cachedHistory.hasMore);
+        setLoadingMessages(false);
+        setShowUnread(false);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(scrollMessagesToBottom);
+        });
+      }
+
+      const history = await getMessages(res.room._id, 1, {
+        force: Boolean(cachedHistory),
+      });
 
       if (openChatRequestRef.current !== requestId) {
         return;
@@ -333,41 +379,24 @@ const ChatPage = () => {
       setMessages(history.messages ?? []);
       setHasMore(history.hasMore);
 
-      // ===== FIX: No unread divider on open =====
-
-      const hasUnread = history.messages?.some((m) => m.status !== "seen");
-
-      setShowUnread(hasUnread);
-
-      setTimeout(() => {
-        if (hasUnread) {
-          unreadAnchorRef.current?.scrollIntoView({
-            behavior: "auto",
-            block: "center",
-          });
-        } else {
-          messagesEndRef.current?.scrollIntoView({
-            behavior: "auto",
-            block: "end",
-          });
-        }
-      }, 100);
+      setShowUnread(false);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(scrollMessagesToBottom);
+      });
       hasNewMessageRef.current = false;
 
-      // ===== MARK AS SEEN IMMEDIATELY =====
-      // ===== MARK AS SEEN AFTER 5 SEC =====
-      setTimeout(() => {
-        if (openChatRequestRef.current !== requestId || !currentUser?._id) {
-          return;
-        }
-
+      if (currentUser?._id) {
         socket.emit("message_seen", {
           roomId: res.room._id,
           userId: currentUser._id,
         });
-
+        notifyChatCounters();
+        setTimeout(() => {
+          refreshChats({ silent: true });
+          notifyChatCounters();
+        }, 150);
         setShowUnread(false);
-      }, 5000);
+      }
 
       // ===== Disable firstLoad effect for initial open =====
       firstLoad.current = false;
@@ -378,6 +407,27 @@ const ChatPage = () => {
         setLoadingMessages(false);
       }
     }
+  };
+
+  const handleBackToChats = () => {
+    openChatRequestRef.current += 1;
+
+    if (room?._id) {
+      socket.emit("leave_room", room._id);
+    }
+
+    setSelectedUser(null);
+    setRoom(null);
+    setMessages([]);
+    setHasMore(true);
+    setShowUnread(false);
+    setMessage("");
+    setReplyTo(null);
+    setTyping(false);
+    firstLoad.current = true;
+    hasNewMessageRef.current = false;
+    refreshChats({ silent: true });
+    notifyChatCounters();
   };
 
   useEffect(() => {
@@ -482,14 +532,13 @@ const ChatPage = () => {
     return () => {
       if (room?._id) {
         socket.emit("leave_room", room._id);
-        setRoom(null);
       }
     };
   }, [room?._id]);
 
   return (
     <div
-      className="chat-page"
+      className={`chat-page ${selectedUser ? "has-active-chat" : "is-chat-list"}`}
       style={{
         display: "flex",
         height: "calc(100vh - 70px)",
@@ -745,6 +794,15 @@ const ChatPage = () => {
                 zIndex: 10,
               }}
             >
+              <button
+                aria-label="Back to chats"
+                className="chat-mobile-back"
+                onClick={handleBackToChats}
+                type="button"
+              >
+                <FiArrowLeft />
+                <span>Chats</span>
+              </button>
               <Avatar
                 user={selectedUser}
                 size={36}

@@ -42,5 +42,6 @@ default: 0,
 
 // Unique user per room
 chatParticipantSchema.index({ chatRoomId: 1, userId: 1 }, { unique: true });
+chatParticipantSchema.index({ userId: 1, updatedAt: -1 });
 
 module.exports = mongoose.model("ChatParticipant", chatParticipantSchema);

@@ -33,6 +33,8 @@ const authCookieOptions = (maxAge) => ({
   httpOnly: true,
   secure: isProduction,
   sameSite: isProduction ? "none" : "lax",
+  path: "/",
+  priority: "high",
   maxAge,
 });
 
@@ -40,6 +42,7 @@ const clearAuthCookieOptions = () => ({
   httpOnly: true,
   secure: isProduction,
   sameSite: isProduction ? "none" : "lax",
+  path: "/",
 });
 
 //register global admin
@@ -682,7 +685,9 @@ const logout = async (req, res) => {
       const decoded = jwt.decode(accessToken);
       const expiry = decoded.exp - Math.floor(Date.now() / 1000);
 
-      await redisClient.setEx(`token:${accessToken}`, expiry, "blocked");
+      if (redisClient.isReady) {
+        await redisClient.setEx(`token:${accessToken}`, expiry, "blocked");
+      }
     }
 
     // 🍪 Clear cookies
