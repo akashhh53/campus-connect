@@ -43,9 +43,9 @@ const allowedOrigins = new Set(
     "http://localhost:5174",
     "http://localhost:3000",
 
-      // Capacitor
+  //capacitor
     "https://localhost",
-    "capacitor://localhost",
+"capacitor://localhost",
   ]
     .filter(Boolean)
     .flatMap((origin) => origin.split(","))

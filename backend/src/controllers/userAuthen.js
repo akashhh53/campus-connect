@@ -50,11 +50,7 @@ const REFRESH_TOKEN_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 const MAX_REFRESH_SESSIONS = Number(process.env.MAX_REFRESH_SESSIONS) || 5;
 
 const setAuthCookies = (res, accessToken, refreshToken) => {
-  res.cookie(
-    "token",
-    accessToken,
-    authCookieOptions(ACCESS_TOKEN_COOKIE_MAX_AGE),
-  );
+  res.cookie("token", accessToken, authCookieOptions(ACCESS_TOKEN_COOKIE_MAX_AGE));
 
   if (refreshToken) {
     res.cookie(
@@ -461,7 +457,83 @@ const registerUser = async (req, res) => {
 /**
  * Unified login for all roles (student, teacher, alumni, admin, globalAdmin)
  */
-createAuthSession(user, req, res)
+const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "Email and password are required",
+      });
+    }
+
+    const user = await User.findOne({
+      email,
+    })
+      .select("+password")
+      .populate("role", "name permissions allowedModules");
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Invalid email or password",
+      });
+    }
+
+    if (user.isBlocked) {
+      return res.status(403).json({
+        message: "Your account is blocked. Contact admin.",
+      });
+    }
+
+    if (!user.isVerified.email) {
+      return res.status(403).json({
+        message: "Please verify your email before logging in",
+      });
+    }
+
+    const isPasswordMatch = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordMatch) {
+      return res.status(401).json({
+        message: "Invalid email or password",
+      });
+    }
+
+    const { accessToken } = await createAuthSession(user, req, res);
+
+    const reply = {
+      _id: user._id,
+
+      name: user.name,
+
+      email: user.email,
+
+      phone: user.phone,
+
+      role: user.role,
+
+      profilePicture: user.profilePicture,
+
+      bio: user.bio,
+    };
+
+    return res.status(200).json({
+      message: "Login successful",
+
+      accessToken,
+
+      user: reply,
+    });
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).json({
+      message: "Login failed",
+
+      error: err.message,
+    });
+  }
+};
 
 const refreshAccessToken = async (req, res) => {
   try {
@@ -970,6 +1042,7 @@ const updateClg = async (req, res) => {
   }
 };
 
+
 module.exports = {
   sendAdminInvite,
   acceptAdminInvite,
@@ -987,4 +1060,5 @@ module.exports = {
   updateClg,
   getColleges,
   createCollege,
+  
 };
