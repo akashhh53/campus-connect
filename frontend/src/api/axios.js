@@ -13,6 +13,28 @@ const axiosInstance = axios.create({
   },
 });
 
+let refreshPromise = null;
+
+const refreshAccessToken = async () => {
+  if (!refreshPromise) {
+    refreshPromise = axios
+      .post(
+        `${API_BASE_URL}/user/refresh`,
+
+        {},
+
+        {
+          withCredentials: true,
+        },
+      )
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+};
+
 // REQUEST
 
 axiosInstance.interceptors.request.use(
@@ -49,15 +71,7 @@ axiosInstance.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refresh = await axios.post(
-          `${API_BASE_URL}/user/refresh`,
-
-          {},
-
-          {
-            withCredentials: true,
-          },
-        );
+        const refresh = await refreshAccessToken();
 
         const stored = localStorage.getItem("userInfo");
 
@@ -73,6 +87,7 @@ axiosInstance.interceptors.response.use(
           );
         }
 
+        originalRequest.headers = originalRequest.headers || {};
         originalRequest.headers.Authorization = `Bearer ${refresh.data.accessToken}`;
 
         return axiosInstance(originalRequest);

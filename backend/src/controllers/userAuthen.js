@@ -45,6 +45,56 @@ const clearAuthCookieOptions = () => ({
   path: "/",
 });
 
+const ACCESS_TOKEN_COOKIE_MAX_AGE = 30 * 60 * 1000;
+const REFRESH_TOKEN_COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+const MAX_REFRESH_SESSIONS = Number(process.env.MAX_REFRESH_SESSIONS) || 5;
+
+const setAuthCookies = (res, accessToken, refreshToken) => {
+  res.cookie("token", accessToken, authCookieOptions(ACCESS_TOKEN_COOKIE_MAX_AGE));
+
+  if (refreshToken) {
+    res.cookie(
+      "refreshToken",
+      refreshToken,
+      authCookieOptions(REFRESH_TOKEN_COOKIE_MAX_AGE),
+    );
+  }
+};
+
+const attachRefreshSession = async (user, refreshToken, req) => {
+  const refreshCutoff = Date.now() - REFRESH_TOKEN_COOKIE_MAX_AGE;
+  const existingSessions = Array.isArray(user.refreshTokens)
+    ? user.refreshTokens.filter(
+        (session) =>
+          session.token &&
+          session.token !== refreshToken &&
+          new Date(session.createdAt || 0).getTime() > refreshCutoff,
+      )
+    : [];
+
+  existingSessions.push({
+    token: refreshToken,
+    createdAt: new Date(),
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  user.refreshTokens = existingSessions.slice(-MAX_REFRESH_SESSIONS);
+  user.lastLoginAt = new Date();
+
+  await user.save();
+};
+
+const createAuthSession = async (user, req, res) => {
+  const accessToken = generateAccessToken(user);
+  const refreshToken = generateRefreshToken(user);
+
+  await attachRefreshSession(user, refreshToken, req);
+  setAuthCookies(res, accessToken, refreshToken);
+
+  return { accessToken, refreshToken };
+};
+
 //register global admin
 const registerGlobalAdmin = async (req, res) => {
   try {
@@ -101,13 +151,9 @@ const registerGlobalAdmin = async (req, res) => {
       isVerified: { email: true },
     });
 
-    // 6️⃣ Generate tokens
-    const accessToken = generateAccessToken(newGlobalAdmin);
-    const refreshToken = generateRefreshToken(newGlobalAdmin);
+    // 6️⃣ Generate tokens/session
+    const { accessToken } = await createAuthSession(newGlobalAdmin, req, res);
     await newGlobalAdmin.populate("role", "name permissions allowedModules");
-
-    // 7️⃣ Set refresh token cookie
-    res.cookie("refreshToken", refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
 
     // 8️⃣ Send response
     res.status(201).json({
@@ -299,11 +345,8 @@ const acceptAdminInvite = async (req, res) => {
     invite.used = true;
     await invite.save();
 
-    const accessToken = generateAccessToken(newUser);
-    const refreshToken = generateRefreshToken(newUser);
+    const { accessToken } = await createAuthSession(newUser, req, res);
     await newUser.populate("role", "name permissions allowedModules");
-
-    res.cookie("refreshToken", refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
 
     res.status(201).json({
       message: "Admin account created successfully",
@@ -386,13 +429,9 @@ const registerUser = async (req, res) => {
       isVerified: { email: true }, // optional, can set false if email verification is required
     });
 
-    // 6️⃣ Generate tokens
-    const accessToken = generateAccessToken(newUser);
-    const refreshToken = generateRefreshToken(newUser);
+    // 6️⃣ Generate tokens/session
+    const { accessToken } = await createAuthSession(newUser, req, res);
     await newUser.populate("role", "name permissions allowedModules");
-
-    // 7️⃣ Set refresh token cookie
-    res.cookie("refreshToken", refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
 
     // 8️⃣ Send response
     res.status(201).json({
@@ -460,31 +499,7 @@ const loginUser = async (req, res) => {
       });
     }
 
-    const accessToken = generateAccessToken(user);
-
-    const refreshToken = generateRefreshToken(user);
-
-    if (user.refreshTokens.length >= 5) {
-      user.refreshTokens.shift();
-    }
-
-    user.refreshTokens.push({
-      token: refreshToken,
-
-      createdAt: new Date(),
-
-      ipAddress: req.ip,
-
-      userAgent: req.headers["user-agent"],
-    });
-
-    user.lastLoginAt = new Date();
-
-    await user.save();
-
-    res.cookie("token", accessToken, authCookieOptions(200 * 60 * 1000));
-
-    res.cookie("refreshToken", refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
+    const { accessToken } = await createAuthSession(user, req, res);
 
     const reply = {
       _id: user._id,
@@ -554,7 +569,7 @@ const refreshAccessToken = async (req, res) => {
     // ONLY CREATE NEW ACCESS TOKEN
     const accessToken = generateAccessToken(user);
 
-    res.cookie("token", accessToken, authCookieOptions(30 * 60 * 1000));
+    setAuthCookies(res, accessToken);
 
     return res.status(200).json({
       accessToken,
@@ -594,11 +609,7 @@ const socialLogin = async (req, res) => {
 
     // ================== LOGIN ==================
     if (user) {
-      const accessToken = generateAccessToken(user);
-      const refreshToken = generateRefreshToken(user);
-
-      res.cookie("token", accessToken, authCookieOptions(15 * 60 * 1000));
-      res.cookie("refreshToken", refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
+      const { accessToken } = await createAuthSession(user, req, res);
 
       return res.status(200).json({
         message: "Social login successful",
@@ -630,12 +641,8 @@ const socialLogin = async (req, res) => {
       isVerified: { email: true },
     });
 
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    const { accessToken } = await createAuthSession(user, req, res);
     await user.populate("role", "name permissions allowedModules");
-
-    res.cookie("token", accessToken, authCookieOptions(15 * 60 * 1000));
-    res.cookie("refreshToken", refreshToken, authCookieOptions(7 * 24 * 60 * 60 * 1000));
 
     res.status(201).json({
       message: "Account created via social login",
