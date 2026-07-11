@@ -6,6 +6,33 @@ const normalizeDomain = (value = "") =>
 const normalizeCollegeCode = (value = "") =>
   normalizeEmail(value).replace(/[^a-z0-9]/g, "");
 
+const getCollegeNameAcronym = (name = "") => {
+  const ignoredWords = new Set(["and", "of", "the", "for", "in", "at", "&"]);
+  const acronym = String(name)
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word && !ignoredWords.has(word))
+    .map((word) => word[0])
+    .join("");
+
+  return normalizeCollegeCode(acronym);
+};
+
+const getCollegeAliases = (college = {}) => {
+  const aliases = new Set();
+  const code = normalizeCollegeCode(college.code);
+  const compactName = normalizeCollegeCode(college.name);
+  const acronym = getCollegeNameAcronym(college.name);
+
+  [code, compactName, acronym].forEach((alias) => {
+    if (alias) {
+      aliases.add(alias);
+    }
+  });
+
+  return [...aliases];
+};
+
 const getEmailParts = (email = "") => {
   const normalized = normalizeEmail(email);
   const [localPart = "", domain = ""] = normalized.split("@");
@@ -23,14 +50,13 @@ const isStudentEmailFormat = (email = "") => {
 
 const getCollegeEmailDomains = (college = {}) => {
   const domains = new Set();
-  const code = normalizeCollegeCode(college.code);
 
-  if (code) {
-    domains.add(`${code}.ac.in`);
-    domains.add(`${code}.edu.in`);
-    domains.add(`${code}.edu`);
-    domains.add(`${code}.in`);
-  }
+  getCollegeAliases(college).forEach((alias) => {
+    domains.add(`${alias}.ac.in`);
+    domains.add(`${alias}.edu.in`);
+    domains.add(`${alias}.edu`);
+    domains.add(`${alias}.in`);
+  });
 
   if (Array.isArray(college.emailDomains)) {
     college.emailDomains.forEach((domain) => {
@@ -50,10 +76,10 @@ const studentEmailMatchesCollege = (email, college) => {
   }
 
   const { localPart, domain } = getEmailParts(email);
-  const normalizedCode = normalizeCollegeCode(college.code);
+  const aliases = getCollegeAliases(college);
   const normalizedDomain = normalizeDomain(domain);
 
-  if (!localPart || !normalizedCode || !normalizedDomain) {
+  if (!localPart || aliases.length === 0 || !normalizedDomain) {
     return false;
   }
 
@@ -69,11 +95,12 @@ const studentEmailMatchesCollege = (email, college) => {
 
   const firstLabel = normalizedDomain.split(".")[0];
 
-  return (
-    firstLabel === normalizedCode ||
-    normalizedDomain === normalizedCode ||
-    normalizedDomain.startsWith(`${normalizedCode}.`) ||
-    normalizedDomain.includes(`.${normalizedCode}.`)
+  return aliases.some(
+    (alias) =>
+      firstLabel === alias ||
+      normalizedDomain === alias ||
+      normalizedDomain.startsWith(`${alias}.`) ||
+      normalizedDomain.includes(`.${alias}.`),
   );
 };
 
@@ -81,6 +108,8 @@ module.exports = {
   normalizeEmail,
   normalizeDomain,
   normalizeCollegeCode,
+  getCollegeNameAcronym,
+  getCollegeAliases,
   getEmailParts,
   isStudentEmailFormat,
   getCollegeEmailDomains,

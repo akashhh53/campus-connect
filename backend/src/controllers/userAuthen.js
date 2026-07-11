@@ -22,15 +22,26 @@ const normalizeURL = (url) => url?.trim().replace(/\/$/, "");
 
 const frontendURLs = [
   process.env.FRONTEND_URL,
+  process.env.PUBLIC_FRONTEND_URL,
+  process.env.CLIENT_URL,
+  process.env.APP_URL,
   ...(process.env.FRONTEND_URLS || "").split(","),
 ]
   .map(normalizeURL)
   .filter(Boolean);
 
+const getRequestOrigin = (req) => {
+  const origin = normalizeURL(req?.headers?.origin || req?.get?.("origin"));
+
+  if (!origin || !/^https?:\/\//i.test(origin)) {
+    return "";
+  }
+
+  return origin;
+};
+
 const getFrontendURL = (req) =>
-  normalizeURL(req?.headers?.origin || req?.get?.("origin")) ||
-  frontendURLs[0] ||
-  "http://localhost:5173";
+  frontendURLs[0] || getRequestOrigin(req) || "http://localhost:5173";
 
 const isProduction =
   process.env.NODE_ENV === "production" ||

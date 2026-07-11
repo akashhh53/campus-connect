@@ -41,10 +41,21 @@ app.set("trust proxy", 1);
 
 const normalizeOrigin = (origin) => origin?.trim().replace(/\/$/, "");
 
+const configuredFrontendOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.PUBLIC_FRONTEND_URL,
+  process.env.CLIENT_URL,
+  process.env.APP_URL,
+  process.env.FRONTEND_URLS,
+]
+  .filter(Boolean)
+  .flatMap((origin) => origin.split(","))
+  .map(normalizeOrigin)
+  .filter(Boolean);
+
 const allowedOrigins = new Set(
   [
-    process.env.FRONTEND_URL,
-    process.env.FRONTEND_URLS,
+    ...configuredFrontendOrigins,
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:3000",
@@ -54,14 +65,22 @@ const allowedOrigins = new Set(
 "capacitor://localhost",
   ]
     .filter(Boolean)
-    .flatMap((origin) => origin.split(","))
     .map(normalizeOrigin)
     .filter(Boolean),
 );
 
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin || allowedOrigins.has(normalizeOrigin(origin))) {
+    const normalizedOrigin = normalizeOrigin(origin);
+    const allowUnconfiguredHttpsOrigin =
+      configuredFrontendOrigins.length === 0 &&
+      /^https:\/\//i.test(normalizedOrigin || "");
+
+    if (
+      !origin ||
+      allowedOrigins.has(normalizedOrigin) ||
+      allowUnconfiguredHttpsOrigin
+    ) {
       return callback(null, true);
     }
 

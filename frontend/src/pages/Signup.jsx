@@ -17,6 +17,31 @@ const roles = [
 const normalizeCollegeCode = (value = "") =>
   String(value).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
+const getCollegeNameAcronym = (name = "") => {
+  const ignoredWords = new Set(["and", "of", "the", "for", "in", "at", "&"]);
+
+  return normalizeCollegeCode(
+    String(name)
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((word) => word && !ignoredWords.has(word))
+      .map((word) => word[0])
+      .join(""),
+  );
+};
+
+const getCollegeAliases = (college) => {
+  if (!college) {
+    return [];
+  }
+
+  return [
+    normalizeCollegeCode(college.code),
+    normalizeCollegeCode(college.name),
+    getCollegeNameAcronym(college.name),
+  ].filter(Boolean);
+};
+
 const getStudentEmailHint = (college) => {
   if (!college) {
     return "";
@@ -36,7 +61,7 @@ const isStudentEmailCompatible = (email = "", college) => {
   }
 
   const [localPart = "", domain = ""] = String(email).trim().toLowerCase().split("@");
-  const collegeCode = normalizeCollegeCode(college.code);
+  const collegeAliases = getCollegeAliases(college);
   const domainHint = getStudentEmailHint(college);
   const normalizedDomain = domain.trim();
   const allowedDomains = new Set(
@@ -48,7 +73,7 @@ const isStudentEmailCompatible = (email = "", college) => {
       .filter(Boolean),
   );
 
-  if (!localPart || !normalizedDomain || !collegeCode) {
+  if (!localPart || !normalizedDomain || collegeAliases.length === 0) {
     return false;
   }
 
@@ -58,10 +83,13 @@ const isStudentEmailCompatible = (email = "", college) => {
   return (
     hasStudentTag &&
     (allowedDomains.has(normalizedDomain) ||
-      firstLabel === collegeCode ||
-      normalizedDomain === collegeCode ||
-      normalizedDomain.startsWith(`${collegeCode}.`) ||
-      normalizedDomain.includes(`.${collegeCode}.`))
+      collegeAliases.some(
+        (alias) =>
+          firstLabel === alias ||
+          normalizedDomain === alias ||
+          normalizedDomain.startsWith(`${alias}.`) ||
+          normalizedDomain.includes(`.${alias}.`),
+      ))
   );
 };
 
