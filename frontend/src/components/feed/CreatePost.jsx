@@ -8,6 +8,7 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
   });
   const [attachments, setAttachments] = useState([]);
   const [previewUrls, setPreviewUrls] = useState([]);
+  const [submitError, setSubmitError] = useState("");
   const fileInputRef = useRef(null);
   const contentRef = useRef(null);
 
@@ -30,6 +31,24 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
+    const invalidFile = files.find(
+      (file) =>
+        !file.type.startsWith("image/") &&
+        !file.type.startsWith("video/"),
+    );
+
+    if (invalidFile) {
+      setSubmitError("Please choose image or video files only.");
+      return;
+    }
+
+    const tooLarge = files.find((file) => file.size > 30 * 1024 * 1024);
+    if (tooLarge) {
+      setSubmitError("Each upload must be 30MB or smaller.");
+      return;
+    }
+
+    setSubmitError("");
     setAttachments(files);
     
     // Create preview URLs
@@ -68,7 +87,15 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
       postData.append("attachments", file);
     });
 
-    await onCreatePost(postData);
+    try {
+      setSubmitError("");
+      await onCreatePost(postData);
+    } catch (error) {
+      setSubmitError(
+        error.response?.data?.message || "Your post could not be published. Please try again.",
+      );
+      return;
+    }
 
     // Reset form
     setFormData({
@@ -225,6 +252,8 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
                 <div key={index} className="preview-item">
                   {attachments[index]?.type?.startsWith('image/') ? (
                     <img src={url} alt={`Preview ${index + 1}`} className="preview-image" />
+                  ) : attachments[index]?.type?.startsWith('video/') ? (
+                    <video className="preview-image" controls muted src={url} />
                   ) : (
                     <div className="preview-file">
                       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -248,6 +277,8 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
               ))}
             </div>
           )}
+
+          {submitError && <p className="post-submit-error" role="alert">{submitError}</p>}
         </div>
 
         {/* Form Actions */}
@@ -572,6 +603,18 @@ const CreatePost = ({ onCreatePost, creating, onCancel }) => {
           height: 120px;
           object-fit: cover;
           pointer-events: none;
+        }
+
+        video.preview-image {
+          pointer-events: auto;
+          background: #000;
+        }
+
+        .post-submit-error {
+          margin: 10px 0 0;
+          color: var(--cc-danger);
+          font-size: 13px;
+          font-weight: 650;
         }
 
         .preview-file {

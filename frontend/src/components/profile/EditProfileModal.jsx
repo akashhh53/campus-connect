@@ -5,6 +5,7 @@ const EditProfileModal = ({ user, onClose }) => {
   const [name, setName] = useState(user?.name || "");
   const [bio, setBio] = useState(user?.bio || "");
   const [profilePicture, setProfilePicture] = useState(null);
+  const [removeProfilePicture, setRemoveProfilePicture] = useState(false);
   const [loading, setLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(user?.profilePicture || null);
   const [dragActive, setDragActive] = useState(false);
@@ -45,6 +46,7 @@ const EditProfileModal = ({ user, onClose }) => {
     if (!validateFile(file)) return;
 
     setProfilePicture(file);
+    setRemoveProfilePicture(false);
     setUploadProgress(0);
     
     // Simulate upload progress for better UX
@@ -106,8 +108,9 @@ const EditProfileModal = ({ user, onClose }) => {
     if (previewUrl && previewUrl !== user?.profilePicture) {
       URL.revokeObjectURL(previewUrl);
     }
-    setPreviewUrl(user?.profilePicture || null);
+    setPreviewUrl(null);
     setProfilePicture(null);
+    setRemoveProfilePicture(Boolean(user?.profilePicture));
     setUploadProgress(0);
     setImageError("");
     if (fileInputRef.current) {
@@ -120,7 +123,12 @@ const EditProfileModal = ({ user, onClose }) => {
 
     try {
       setLoading(true);
-      const response = await updateProfile({ name, bio, profilePicture });
+      const response = await updateProfile({
+        name,
+        bio,
+        profilePicture,
+        removeProfilePicture,
+      });
 
       console.log("PROFILE RESPONSE:", response);
       console.log("PROFILE URL:", response?.data?.profilePicture);

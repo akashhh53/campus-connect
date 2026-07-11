@@ -541,11 +541,10 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
                         >
                           {comment.author?.name || "Anonymous User"}
                         </span>
-                        {comment.author?.role && (
+                        {comment.author?.role?.name && (
                           <span className="author-badge">
-                            {comment.author.role.name === "Student"
-                              ? "Student"
-                              : "Teacher"}
+                            {comment.author.role.name.charAt(0).toUpperCase() +
+                              comment.author.role.name.slice(1).toLowerCase()}
                           </span>
                         )}
                         <span className="comment-time">

@@ -9,6 +9,7 @@ export const updateProfile = async (data) => {
   const formData = new FormData();
   formData.append("name", data.name);
   formData.append("bio", data.bio);
+  formData.append("removeProfilePicture", String(Boolean(data.removeProfilePicture)));
   
   if (data.profilePicture) {
     formData.append("profilePicture", data.profilePicture);

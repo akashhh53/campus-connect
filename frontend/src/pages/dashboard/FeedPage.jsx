@@ -192,7 +192,8 @@ const FeedPage = () => {
       feedRef.current?.scrollIntoView({ behavior: "smooth" });
     } catch (err) {
       console.error("Create post error:", err);
-      alert(err.response?.data?.message || "Failed to create post");
+      setError(err.response?.data?.message || "Failed to create post");
+      throw err;
     } finally {
       setCreating(false);
     }

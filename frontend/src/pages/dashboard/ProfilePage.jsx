@@ -313,15 +313,18 @@ const ProfilePage = memo(() => {
       <div className="profile-wrapper">
         <div className="avatar-container">
           <div className="avatar-frame">
-            <img
-              src={
-                user?.profilePicture ||
-                `https://ui-avatars.com/api/?name=${user?.name || "User"}&background=667eea&color=fff&size=120&bold=true`
-              }
-              alt={user?.name || "Profile"}
-              className="avatar"
-              draggable="false"
-            />
+            {user?.profilePicture ? (
+              <img
+                src={user.profilePicture}
+                alt={user?.name || "Profile"}
+                className="avatar"
+                draggable="false"
+              />
+            ) : (
+              <span className="avatar avatar-initial">
+                {(user?.name || "U").trim().charAt(0).toUpperCase()}
+              </span>
+            )}
           </div>
         </div>
 
@@ -1368,6 +1371,15 @@ const ProfilePage = memo(() => {
           height: 40px;
           border-radius: 50%;
           object-fit: cover;
+        }
+
+        .avatar-initial {
+          display: grid;
+          place-items: center;
+          background: #76513b;
+          color: #ffffff;
+          font-size: 38px;
+          font-weight: 800;
         }
 
         .user-row div {

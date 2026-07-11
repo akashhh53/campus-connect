@@ -40,12 +40,6 @@ const Signup = () => {
         const list = data.colleges || [];
         setColleges(list);
 
-        if (list.length > 0) {
-          setFormData((current) => ({
-            ...current,
-            collegeId: current.collegeId || list[0]._id,
-          }));
-        }
       } catch (err) {
         setError(err.response?.data?.message || "Unable to load colleges");
       } finally {
@@ -159,7 +153,7 @@ const Signup = () => {
             <label className="cc-field">
               <span className="cc-label">Date of birth</span>
               <input
-                className="cc-input"
+                className="cc-input cc-date-input"
                 name="dateOfBirth"
                 onChange={handleChange}
                 required
@@ -199,11 +193,14 @@ const Signup = () => {
                 ) : colleges.length === 0 ? (
                   <option value="">No colleges available</option>
                 ) : (
-                  colleges.map((college) => (
-                    <option key={college._id} value={college._id}>
-                      {college.name} ({college.code})
-                    </option>
-                  ))
+                  <>
+                    <option value="">Choose your college</option>
+                    {colleges.map((college) => (
+                      <option key={college._id} value={college._id}>
+                        {college.name} ({college.code})
+                      </option>
+                    ))}
+                  </>
                 )}
               </select>
             </label>

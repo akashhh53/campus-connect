@@ -1,17 +1,26 @@
 import { io } from "socket.io-client";
 import { API_BASE_URL } from "../api/axios";
 
-const stored = localStorage.getItem("userInfo");
-
-const user = stored ? JSON.parse(stored) : null;
-
 const socket = io(API_BASE_URL, {
   withCredentials: true,
-
-  auth: {
-    userId: user?.user?._id,
-  },
+  autoConnect: false,
 });
+
+export const connectSocket = (userId) => {
+  if (!userId) return;
+
+  if (socket.connected && String(socket.auth?.userId) === String(userId)) {
+    return;
+  }
+
+  if (socket.connected) socket.disconnect();
+  socket.auth = { userId };
+  socket.connect();
+};
+
+export const disconnectSocket = () => {
+  socket.disconnect();
+};
 
 export const joinRoom = (roomId) => {
   socket.emit("join_room", roomId);

@@ -474,15 +474,14 @@ const UserProfilePage = () => {
       {/* Profile Info */}
       <div className="profile-container" style={styles.profileContainer}>
         <div className="profile-avatar" style={styles.profileAvatar}>
-          <img
-            style={styles.avatarImage}
-            src={
-              user.profilePicture ||
-              `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=3b82f6&color=fff&size=120&bold=true`
-            }
-            alt={user.name}
-          />
-          {user.role?.name === "Teacher" && (
+          {user.profilePicture ? (
+            <img style={styles.avatarImage} src={user.profilePicture} alt={user.name} />
+          ) : (
+            <span className="profile-avatar-initial" style={styles.avatarImage}>
+              {(user.name || "U").trim().charAt(0).toUpperCase()}
+            </span>
+          )}
+          {user.role?.name?.toLowerCase() === "teacher" && (
             <span className="verified-badge" style={styles.verifiedBadge}>
               <svg
                 viewBox="0 0 24 24"
@@ -1661,6 +1660,15 @@ if (typeof document !== "undefined") {
       background: var(--cc-surface-soft);
       border-color: var(--cc-border);
     }
+
+    .profile-page .profile-avatar-initial {
+      display: grid;
+      place-items: center;
+      background: #76513b;
+      color: #ffffff;
+      font-size: 38px;
+      font-weight: 800;
+    }
     
     .profile-page .modal-search-input:focus {
       border-color: var(--cc-primary);
@@ -1705,6 +1713,29 @@ if (typeof document !== "undefined") {
       
       .profile-page .profile-stats {
         gap: 16px;
+      }
+
+      .profile-page .modal-content {
+        width: calc(100% - 24px) !important;
+        max-height: calc(100vh - 32px) !important;
+      }
+
+      .profile-page .user-list-item {
+        gap: 9px;
+        padding: 10px 12px !important;
+      }
+
+      .profile-page .user-list-email {
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .profile-page .follow-mini,
+      .profile-page .you-btn {
+        padding: 6px 9px !important;
+        font-size: 12px !important;
       }
     }
   `;

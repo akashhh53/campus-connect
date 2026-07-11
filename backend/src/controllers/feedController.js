@@ -84,7 +84,7 @@ const enrichPostsWithStats = async (posts, userId, { includeCommentCounts = fals
 
 const updateUserProfile = async (req, res) => {
   try {
-    const { name, bio } = req.body;
+    const { name, bio, removeProfilePicture } = req.body;
 
     let updates = {};
 
@@ -94,6 +94,10 @@ const updateUserProfile = async (req, res) => {
 
     if (bio !== undefined) {
       updates.bio = bio;
+    }
+
+    if (removeProfilePicture === "true") {
+      updates.profilePicture = "";
     }
 
     /* profile photo */
@@ -1795,16 +1799,25 @@ const getNotifications = async (req, res) => {
       ],
     };
 
+    const unreadQuery = {
+      $and: [
+        query,
+        {
+          $or: [
+            { userId: { $ne: null }, isRead: false },
+            { userId: null, readBy: { $ne: user._id } },
+          ],
+        },
+      ],
+    };
+
     const [notifications, unreadCount, total] = await Promise.all([
       Notification.find(query)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      Notification.countDocuments({
-        ...query,
-        isRead: false,
-      }),
+      Notification.countDocuments(unreadQuery),
       Notification.countDocuments(query),
     ]);
 
@@ -1812,7 +1825,14 @@ const getNotifications = async (req, res) => {
       success: true,
       unreadCount: unreadCount,
       count: notifications.length,
-      notifications: notifications,
+      notifications: notifications.map((notification) => ({
+        ...notification,
+        isRead: notification.userId
+          ? notification.isRead
+          : (notification.readBy || []).some(
+              (readerId) => String(readerId) === String(user._id),
+            ),
+      })),
       pagination: {
         page,
         limit,
@@ -1856,9 +1876,15 @@ const markNotificationRead = async (req, res) => {
       });
     }
 
-    notification.isRead = true;
-
-    await notification.save();
+    if (notification.userId) {
+      notification.isRead = true;
+      await notification.save();
+    } else {
+      await Notification.updateOne(
+        { _id: notification._id },
+        { $addToSet: { readBy: user._id } },
+      );
+    }
 
     return res.json({
       success: true,
@@ -1879,23 +1905,7 @@ const markAllNotificationsRead = async (req, res) => {
 
     await Notification.updateMany(
       {
-        $or: [
-          {
-            userId: user._id,
-          },
-          {
-            userId: null,
-
-            collegeId: {
-              $in: [null, user.collegeId],
-            },
-
-            role: {
-              $in: [user.role?.name, "all"],
-            },
-          },
-        ],
-
+        userId: user._id,
         isRead: false,
       },
 
@@ -1904,6 +1914,16 @@ const markAllNotificationsRead = async (req, res) => {
           isRead: true,
         },
       },
+    );
+
+    await Notification.updateMany(
+      {
+        userId: null,
+        collegeId: { $in: [null, user.collegeId] },
+        role: { $in: [user.role?.name, "all"] },
+        readBy: { $ne: user._id },
+      },
+      { $addToSet: { readBy: user._id } },
     );
 
     return res.json({

@@ -17,13 +17,13 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Configure storage
+// One shared pipeline for image and short video attachments.
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: 'lost-found-items',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-    transformation: [{ width: 800, height: 800, crop: 'limit' }],
+    folder: 'campus-connect',
+    resource_type: 'auto',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm', 'mov'],
   },
 });
 
@@ -46,18 +46,21 @@ const upload = multer({
       'image/webp',
       'image/x-png',  // Some systems use this for PNG
       'image/pjpeg',  // Progressive JPEG
+      'video/mp4',
+      'video/webm',
+      'video/quicktime',
     ];
     
     // Check by file extension as well
     const fileExtension = file.originalname.split('.').pop().toLowerCase();
-    const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm', 'mov'];
     
     if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
       console.log('✅ File accepted:', file.originalname);
       cb(null, true);
     } else {
       console.log('❌ File rejected:', file.originalname, 'Type:', file.mimetype);
-      cb(new Error(`Invalid file type. ${file.mimetype} is not allowed. Only JPEG, PNG, GIF, and WEBP are allowed.`));
+      cb(new Error(`Invalid file type. ${file.mimetype} is not allowed. Upload an image or MP4, WEBM, or MOV video.`));
     }
   },
 });

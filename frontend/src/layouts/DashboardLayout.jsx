@@ -4,7 +4,7 @@ import { NavLink, Outlet } from "react-router";
 
 import Topbar from "../components/Topbar";
 import { getMyChats } from "../services/chatService";
-import socket from "../socket/socket";
+import socket, { connectSocket, disconnectSocket } from "../socket/socket";
 import sidebarConfig from "../utils/sidebarConfig";
 
 const DashboardLayout = () => {
@@ -40,11 +40,18 @@ const DashboardLayout = () => {
   }, [modules]);
 
   useEffect(() => {
+    if (!user?._id) return undefined;
+
+    connectSocket(user._id);
+    return () => disconnectSocket();
+  }, [user?._id]);
+
+  useEffect(() => {
     let alive = true;
 
     const loadUnread = async () => {
       try {
-        const data = await getMyChats();
+        const data = await getMyChats({ force: true });
         const total = (data.chats || []).filter(
           (chat) => (chat.unreadCount || 0) > 0,
         ).length;

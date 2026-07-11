@@ -223,6 +223,7 @@ const PostCard = memo(
       : `${post.content?.substring(0, MAX_TEXT_LENGTH)}...`;
     const hasMultipleImages = post.attachments?.length > 1;
     const currentImage = post.attachments?.[currentImageIndex];
+    const isVideo = /\.(mp4|webm|mov)(?:\?|$)/i.test(currentImage || "");
     const moduleStyle = getModuleColor(post.module);
     const ModuleIcon = moduleStyle.icon;
 
@@ -259,7 +260,7 @@ const PostCard = memo(
                 >
                   {post.author?.name || "Anonymous User"}
                 </span>
-                {post.author?.role?.name === "Teacher" && (
+                {post.author?.role?.name?.toLowerCase() === "teacher" && (
                   <span className="verified-icon" title="Verified Educator">
                     <svg viewBox="0 0 24 24" fill="currentColor">
                       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
@@ -343,14 +344,24 @@ const PostCard = memo(
         {post.attachments?.length > 0 && (
           <div className="media-container">
             <div className="media-wrapper">
-              <img
-                ref={imageRef}
-                src={currentImage}
-                alt={`Media ${currentImageIndex + 1}`}
-                className="media-image"
-                draggable="false"
-                loading="lazy"
-              />
+              {isVideo ? (
+                <video
+                  className="media-image"
+                  controls
+                  playsInline
+                  preload="metadata"
+                  src={currentImage}
+                />
+              ) : (
+                <img
+                  ref={imageRef}
+                  src={currentImage}
+                  alt={`Media ${currentImageIndex + 1}`}
+                  className="media-image"
+                  draggable="false"
+                  loading="lazy"
+                />
+              )}
 
               {hasMultipleImages && (
                 <>

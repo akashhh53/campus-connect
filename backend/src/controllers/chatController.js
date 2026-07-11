@@ -3,7 +3,24 @@ const ChatRoom = require("../models/chat/chatRoom");
 const ChatParticipant = require("../models/chat/chatParticipant");
 const Message = require("../models/chat/message");
 
-const { getIO } = require("../../socket");
+const { getIO, isUserOnline } = require("../../socket");
+
+const parseAttachments = (attachments) => {
+  if (!attachments) return [];
+  if (Array.isArray(attachments)) return attachments;
+
+  try {
+    const parsed = JSON.parse(attachments);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const populateMessage = (messageId) =>
+  Message.findById(messageId)
+    .populate("sender", "_id name profilePicture")
+    .populate({ path: "replyTo", select: "_id content sender createdAt" });
 
 const createOrOpenRoom = async (req, res) => {
   try {
@@ -110,7 +127,20 @@ const sendMessage = async (req, res) => {
   try {
     const user = req.user;
 
-    const { roomId, content, replyTo, attachments } = req.body;
+    const { roomId, content = "", replyTo, attachments } = req.body;
+    const text = content.trim();
+    const uploadedAttachments = (req.files || []).map((file) => file.path);
+    const allAttachments = [
+      ...parseAttachments(attachments),
+      ...uploadedAttachments,
+    ];
+
+    if (!text && allAttachments.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Write a message or attach a file.",
+      });
+    }
 
     const room = await ChatRoom.findById(roomId);
 
@@ -120,14 +150,23 @@ const sendMessage = async (req, res) => {
       });
     }
 
+    const isParticipant = await ChatParticipant.exists({
+      chatRoomId: roomId,
+      userId: user._id,
+    });
+
+    if (!isParticipant) {
+      return res.status(403).json({ success: false, message: "Chat access denied" });
+    }
+
     const message = await Message.create({
       chatRoomId: roomId,
 
       sender: user._id,
 
-      content,
+      content: text,
 
-      attachments: attachments || [],
+      attachments: allAttachments,
 
       replyTo: replyTo || null,
     });
@@ -161,7 +200,7 @@ const sendMessage = async (req, res) => {
 
           if (
             socket?.handshake?.auth?.userId === p.userId.toString() &&
-            socket.activeRoom === roomId
+            String(socket.activeRoom) === String(roomId)
           ) {
             userInside = true;
 
@@ -178,19 +217,7 @@ const sendMessage = async (req, res) => {
         });
       }
     }
-    const populated = await Message.findById(message._id)
-
-      .populate(
-        "sender",
-
-        "_id name profilePicture",
-      )
-
-      .populate({
-        path: "replyTo",
-
-        select: "_id content sender createdAt",
-      });
+    const populated = await populateMessage(message._id);
 
    io.to(roomId).emit(
   "new_message",
@@ -254,6 +281,7 @@ const getMessages = async (req, res) => {
 
     const messages = await Message.find({
       chatRoomId: roomId,
+      deletedFor: { $ne: user._id },
     })
 
       .populate("sender", "_id name")
@@ -345,6 +373,7 @@ const getMyChats = async (req, res) => {
         lastMessageAt: room.lastMessageAt,
 
         unreadCount: participant.unreadCount,
+        isOnline: isUserOnline(otherUserByRoom.get(String(room._id))?._id),
       };
     });
 
@@ -367,9 +396,113 @@ const getMyChats = async (req, res) => {
   }
 };
 
+const deleteMessage = async (req, res) => {
+  try {
+    const message = await Message.findOne({
+      _id: req.params.messageId,
+      sender: req.user._id,
+      isDeleted: false,
+    });
+
+    if (!message) {
+      return res.status(404).json({ success: false, message: "Message not found" });
+    }
+
+    message.isDeleted = true;
+    message.content = "This message was deleted.";
+    message.attachments = [];
+    message.reactions = [];
+    await message.save();
+
+    getIO().to(String(message.chatRoomId)).emit("message_deleted", {
+      messageId: message._id,
+      roomId: message.chatRoomId,
+    });
+
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const clearChatForMe = async (req, res) => {
+  try {
+    const isParticipant = await ChatParticipant.exists({
+      chatRoomId: req.params.roomId,
+      userId: req.user._id,
+    });
+
+    if (!isParticipant) {
+      return res.status(403).json({ success: false, message: "Chat access denied" });
+    }
+
+    await Message.updateMany(
+      { chatRoomId: req.params.roomId },
+      { $addToSet: { deletedFor: req.user._id } },
+    );
+    await ChatParticipant.updateOne(
+      { chatRoomId: req.params.roomId, userId: req.user._id },
+      { $set: { unreadCount: 0 } },
+    );
+
+    getIO().to(String(req.user._id)).emit("chat_updated");
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const toggleMessageReaction = async (req, res) => {
+  try {
+    const { emoji } = req.body;
+    if (!emoji || String(emoji).length > 32) {
+      return res.status(400).json({ success: false, message: "Choose a valid reaction" });
+    }
+
+    const message = await Message.findById(req.params.messageId);
+    if (!message || message.isDeleted) {
+      return res.status(404).json({ success: false, message: "Message not found" });
+    }
+
+    const isParticipant = await ChatParticipant.exists({
+      chatRoomId: message.chatRoomId,
+      userId: req.user._id,
+    });
+    if (!isParticipant) {
+      return res.status(403).json({ success: false, message: "Chat access denied" });
+    }
+
+    const reactionIndex = message.reactions.findIndex(
+      (reaction) => String(reaction.userId) === String(req.user._id) && reaction.emoji === emoji,
+    );
+
+    if (reactionIndex >= 0) {
+      message.reactions.splice(reactionIndex, 1);
+    } else {
+      message.reactions = message.reactions.filter(
+        (reaction) => String(reaction.userId) !== String(req.user._id),
+      );
+      message.reactions.push({ userId: req.user._id, emoji });
+    }
+
+    await message.save();
+    getIO().to(String(message.chatRoomId)).emit("message_reactions", {
+      messageId: message._id,
+      reactions: message.reactions,
+    });
+
+    return res.json({ success: true, reactions: message.reactions });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   createOrOpenRoom,
   sendMessage,
   getMessages,
   getMyChats,
+  deleteMessage,
+  clearChatForMe,
+  toggleMessageReaction,
 };

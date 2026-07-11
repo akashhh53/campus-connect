@@ -1,4 +1,9 @@
-const { setIO } = require("../socket");
+const {
+  setIO,
+  setUserOnline,
+  setUserOffline,
+  getOnlineUserIds,
+} = require("../socket");
 
 const express = require("express");
 const http = require("http");
@@ -28,6 +33,7 @@ const ChatParticipant =
 require(
 "./models/chat/chatParticipant"
 );
+const User = require("./models/userIdentity/user");
 
 const cors = require("cors");
 
@@ -85,6 +91,9 @@ io.on("connection", (socket) => {
 
   if (userId) {
     socket.join(userId);
+    if (setUserOnline(userId, socket.id)) {
+      socket.broadcast.emit("presence_update", { userId, isOnline: true });
+    }
 
     console.log(
       `User ${userId} joined`
@@ -95,6 +104,67 @@ io.on("connection", (socket) => {
     "welcome",
     "Socket connected successfully"
   );
+
+  socket.on("request_presence", () => {
+    socket.emit("presence_snapshot", getOnlineUserIds());
+  });
+
+  // WebRTC media stays between the two callers. The server only relays the
+  // short-lived signaling messages required to establish that connection.
+  socket.on("call_user", async ({ targetId, callId, mode }) => {
+    if (!userId || !targetId || !callId || !["audio", "video"].includes(mode)) {
+      return;
+    }
+
+    const [caller, target] = await Promise.all([
+      User.findById(userId).select("name profilePicture collegeId").lean(),
+      User.findById(targetId).select("collegeId").lean(),
+    ]);
+
+    if (!caller || !target || String(caller.collegeId) !== String(target.collegeId)) {
+      return;
+    }
+
+    io.to(String(targetId)).emit("incoming_call", {
+      callId,
+      mode,
+      caller: caller || { _id: userId, name: "Campus member" },
+    });
+  });
+
+  socket.on("webrtc_offer", ({ targetId, callId, mode, sdp }) => {
+    if (!userId || !targetId || !callId || !sdp) return;
+    io.to(String(targetId)).emit("webrtc_offer", {
+      fromId: userId,
+      callId,
+      mode,
+      sdp,
+    });
+  });
+
+  socket.on("webrtc_answer", ({ targetId, callId, sdp }) => {
+    if (!userId || !targetId || !callId || !sdp) return;
+    io.to(String(targetId)).emit("webrtc_answer", { fromId: userId, callId, sdp });
+  });
+
+  socket.on("webrtc_ice_candidate", ({ targetId, callId, candidate }) => {
+    if (!userId || !targetId || !callId || !candidate) return;
+    io.to(String(targetId)).emit("webrtc_ice_candidate", {
+      fromId: userId,
+      callId,
+      candidate,
+    });
+  });
+
+  socket.on("call_declined", ({ targetId, callId }) => {
+    if (!userId || !targetId || !callId) return;
+    io.to(String(targetId)).emit("call_declined", { fromId: userId, callId });
+  });
+
+  socket.on("call_end", ({ targetId, callId }) => {
+    if (!userId || !targetId || !callId) return;
+    io.to(String(targetId)).emit("call_end", { fromId: userId, callId });
+  });
 
   // JOIN ROOM
 
@@ -111,7 +181,7 @@ io.on("connection", (socket) => {
       }
 
       socket.activeRoom =
-        roomId;
+        String(roomId);
 
       socket.join(
         roomId
@@ -135,7 +205,7 @@ io.on("connection", (socket) => {
 
       if (
         socket.activeRoom ===
-        roomId
+        String(roomId)
       ) {
         socket.activeRoom =
           null;
@@ -312,6 +382,9 @@ io.on("connection", (socket) => {
     "disconnect",
 
     () => {
+      if (setUserOffline(userId, socket.id)) {
+        socket.broadcast.emit("presence_update", { userId, isOnline: false });
+      }
       socket.activeRoom =
         null;
 
@@ -340,6 +413,21 @@ app.use("/user", lostFoundRoutes);
 app.use("/user", feedRoutes);
 
 app.use("/chat", chatRoutes);
+
+app.use((error, req, res, next) => {
+  if (error?.name === "MulterError") {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Unable to upload this file.",
+    });
+  }
+
+  return next();
+});
 
 // Start
 

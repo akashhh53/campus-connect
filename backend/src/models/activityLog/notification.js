@@ -49,6 +49,14 @@ const notificationSchema = new mongoose.Schema(
       default: false,
     },
 
+    // Broadcast notifications retain an individual read state per recipient.
+    readBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
     // NEW FIELDS
     type: {
       type: String,

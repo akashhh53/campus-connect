@@ -16,7 +16,7 @@ import {
 
 import { logout } from "../features/auth/authSlice";
 import { logoutUser } from "../services/authService";
-import { getNotifications, markRead } from "../services/notificationService";
+import { getNotifications, markAllRead, markRead } from "../services/notificationService";
 import socket from "../socket/socket";
 
 const Topbar = ({
@@ -306,6 +306,15 @@ const Topbar = ({
                 setPage(1);
                 setHasMore(true);
                 await fetchNotifications(1, false);
+                try {
+                  await markAllRead();
+                  setNotifications((items) =>
+                    items.map((item) => ({ ...item, isRead: true })),
+                  );
+                  setNotificationCount(0);
+                } catch (err) {
+                  console.log(err);
+                }
               }
 
               setNotificationsOpen((open) => !open);
@@ -314,9 +323,7 @@ const Topbar = ({
           >
             <FiBell />
             {notificationCount > 0 && (
-              <span className="topbar-badge">
-                {notificationCount > 99 ? "99+" : notificationCount}
-              </span>
+              <span className="topbar-badge is-dot" aria-label="Unread notifications" />
             )}
           </button>
 
@@ -327,9 +334,6 @@ const Topbar = ({
                   <h3>Notifications</h3>
                   <p>Campus updates and activity</p>
                 </div>
-                {notificationCount > 0 && (
-                  <span className="notification-count">{notificationCount} new</span>
-                )}
               </div>
 
               <div className="notification-list" ref={notificationsListRef}>

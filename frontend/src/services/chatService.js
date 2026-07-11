@@ -36,9 +36,37 @@ export const openChat = async (recipientId) => {
 };
 
 export const sendMessage = async (data) => {
-  const res = await api.post("/chat/send", data);
+  const hasAttachments = data.attachments?.length;
+  const payload = hasAttachments ? new FormData() : data;
+
+  if (hasAttachments) {
+    payload.append("roomId", data.roomId);
+    payload.append("content", data.content || "");
+    if (data.replyTo) payload.append("replyTo", data.replyTo);
+    data.attachments.forEach((file) => payload.append("attachments", file));
+  }
+
+  const res = await api.post("/chat/send", payload, {
+    headers: hasAttachments ? { "Content-Type": "multipart/form-data" } : undefined,
+  });
 
   clearChatCache(data.roomId);
+  return res.data;
+};
+
+export const deleteMessage = async (messageId) => {
+  const res = await api.delete(`/chat/messages/${messageId}`);
+  return res.data;
+};
+
+export const clearChatForMe = async (roomId) => {
+  const res = await api.delete(`/chat/rooms/${roomId}/messages`);
+  clearChatCache(roomId);
+  return res.data;
+};
+
+export const reactToMessage = async (messageId, emoji) => {
+  const res = await api.post(`/chat/messages/${messageId}/reactions`, { emoji });
   return res.data;
 };
 
