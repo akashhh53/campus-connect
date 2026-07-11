@@ -1,10 +1,25 @@
 const nodemailer = require("nodemailer");
+const dns = require("dns");
+
+if (typeof dns.setDefaultResultOrder === "function") {
+  dns.setDefaultResultOrder("ipv4first");
+}
+
+const mailPort = Number(process.env.MAIL_PORT) || 465;
 
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: process.env.MAIL_HOST || "smtp.gmail.com",
+  port: mailPort,
+  secure: process.env.MAIL_SECURE
+    ? process.env.MAIL_SECURE === "true"
+    : mailPort === 465,
+  family: 4,
   connectionTimeout: Number(process.env.MAIL_CONNECTION_TIMEOUT_MS) || 10000,
   greetingTimeout: Number(process.env.MAIL_GREETING_TIMEOUT_MS) || 10000,
   socketTimeout: Number(process.env.MAIL_SOCKET_TIMEOUT_MS) || 15000,
+  tls: {
+    servername: process.env.MAIL_HOST || "smtp.gmail.com",
+  },
   auth: {
     user: process.env.MAIL_USER,
     pass: process.env.MAIL_PASS,
