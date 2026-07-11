@@ -17,6 +17,7 @@ const LoginPage = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [verificationEmail, setVerificationEmail] = useState("");
 
   const handleChange = (event) => {
     setFormData((current) => ({
@@ -31,6 +32,7 @@ const LoginPage = () => {
     try {
       setLoading(true);
       setError("");
+      setVerificationEmail("");
 
       const data = await loginUser(formData);
 
@@ -39,6 +41,13 @@ const LoginPage = () => {
     } catch (err) {
       const errorMessage = err.response?.data?.message || "Login failed";
       setError(errorMessage);
+
+      if (
+        err.response?.data?.requiresVerification ||
+        errorMessage.toLowerCase().includes("verify your email")
+      ) {
+        setVerificationEmail(formData.email);
+      }
     } finally {
       setLoading(false);
     }
@@ -146,6 +155,16 @@ const LoginPage = () => {
 
           <p className="auth-switch" style={{ marginTop: 10 }}>
             <Link to="/forgot-password">Forgot password?</Link>
+            {" | "}
+            {verificationEmail ? (
+              <Link
+                to={`/verify-email?email=${encodeURIComponent(verificationEmail)}`}
+              >
+                Verify email
+              </Link>
+            ) : (
+              <Link to="/verify-email">Verify email</Link>
+            )}
           </p>
         </form>
       </section>
