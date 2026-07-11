@@ -1,25 +1,32 @@
-const { Resend } = require("resend");
+const brevo = require("@getbrevo/brevo");
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const apiInstance = new brevo.TransactionalEmailsApi();
+
+apiInstance.setApiKey(
+  brevo.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY
+);
 
 const sendMail = async (to, subject, html) => {
-  if (!process.env.RESEND_API_KEY) {
-    throw new Error("RESEND_API_KEY is not configured");
+  const email = new brevo.SendSmtpEmail();
+
+  email.sender = {
+    name: "Campus Connect",
+    email: "akashsingh9580811832@gmail.com", // your verified sender email
+  };
+
+  email.to = [{ email: to }];
+
+  email.subject = subject;
+  email.htmlContent = html;
+
+  try {
+    const response = await apiInstance.sendTransacEmail(email);
+    return response;
+  } catch (err) {
+    console.error("Brevo Error:", err.response?.body || err);
+    throw err;
   }
-
-  const { data, error } = await resend.emails.send({
-    from: process.env.MAIL_FROM || "onboarding@resend.dev",
-    to,
-    subject,
-    html,
-  });
-
-  if (error) {
-    console.error(error);
-    throw new Error(error.message);
-  }
-
-  return data;
 };
 
 module.exports = sendMail;
