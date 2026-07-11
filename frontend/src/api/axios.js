@@ -24,9 +24,12 @@ const resolveApiBaseUrl = () => {
 };
 
 export const API_BASE_URL = resolveApiBaseUrl();
+export const API_TIMEOUT_MS =
+  Number(import.meta.env.VITE_API_TIMEOUT_MS) || 30000;
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
+  timeout: API_TIMEOUT_MS,
 
   withCredentials: true,
 

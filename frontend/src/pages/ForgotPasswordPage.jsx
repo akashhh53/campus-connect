@@ -22,7 +22,11 @@ const ForgotPasswordPage = () => {
       const data = await forgotPassword({ email });
       setMessage(data.message || "Password reset email sent.");
     } catch (err) {
-      setError(err.response?.data?.message || "Unable to send reset email");
+      setError(
+        err.code === "ECONNABORTED"
+          ? "Server took too long to send the reset email. Please try again."
+          : err.response?.data?.message || "Unable to send reset email",
+      );
     } finally {
       setLoading(false);
     }

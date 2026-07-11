@@ -43,7 +43,11 @@ const VerifyEmailPage = () => {
       dispatch(setCredentials(data));
       navigate("/dashboard/feed");
     } catch (err) {
-      setError(err.response?.data?.message || "OTP verification failed");
+      setError(
+        err.code === "ECONNABORTED"
+          ? "Server took too long to verify the OTP. Please try again."
+          : err.response?.data?.message || "OTP verification failed",
+      );
     } finally {
       setLoading(false);
     }
@@ -60,7 +64,11 @@ const VerifyEmailPage = () => {
 
       setMessage(data.message || "Verification code sent again.");
     } catch (err) {
-      setError(err.response?.data?.message || "Unable to resend code");
+      setError(
+        err.code === "ECONNABORTED"
+          ? "Server took too long to resend the code. Please try again."
+          : err.response?.data?.message || "Unable to resend code",
+      );
     } finally {
       setResending(false);
     }
