@@ -10,11 +10,11 @@ Campus Connect is a role-aware campus platform with a realtime feed, direct mess
 ## Run locally
 
 1. Create `backend/.env` with MongoDB, JWT, Cloudinary, Redis, and frontend URL values.
-2. Create `frontend/.env` with the API base URL, for example `VITE_API_URL=http://localhost:5000`.
+2. Create `frontend/.env` with the API base URL, for example `VITE_API_BASE_URL=http://localhost:5000` or `VITE_API_URL=http://localhost:5000`.
 3. In `backend/`, install dependencies and start the server with `npm install` then `npm start`.
 4. In `frontend/`, install dependencies and start the app with `npm install` then `npm run dev`.
 
-The frontend defaults to Vite's local address. Make sure its URL is included in `FRONTEND_URL` or `FRONTEND_URLS` in the backend environment so cookies and Socket.IO can connect.
+The frontend falls back to the current site in production and to `http://localhost:4000` in local development. Make sure the frontend URL is included in `FRONTEND_URL` or `FRONTEND_URLS` in the backend environment so cookies and Socket.IO can connect.
 
 ## Key capabilities
 

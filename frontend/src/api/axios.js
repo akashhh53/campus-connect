@@ -1,7 +1,27 @@
 import axios from "axios";
 
-export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+const resolveApiBaseUrl = () => {
+  const configuredBaseUrl =
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_API_URL ||
+    "";
+
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/$/, "");
+  }
+
+  if (import.meta.env.DEV) {
+    return "http://localhost:4000";
+  }
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin.replace(/\/$/, "");
+  }
+
+  return "http://localhost:4000";
+};
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
