@@ -5,7 +5,7 @@ import { FiLock, FiLogIn, FiMail } from "react-icons/fi";
 
 import AuthThemeToggle from "../components/AuthThemeToggle";
 import { setCredentials } from "../features/auth/authSlice";
-import { loginUser } from "../services/authService";
+import { loginUser, resendOtp } from "../services/authService";
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -53,12 +53,40 @@ const LoginPage = () => {
     }
   };
 
+  const handleVerifyEmail = async () => {
+    const email = verificationEmail || formData.email;
+
+    if (!email) {
+      setError("Please enter your email first.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      await resendOtp({ email });
+
+      navigate(`/verify-email?email=${encodeURIComponent(email)}`, {
+        state: {
+          notice: "OTP sent successfully.",
+        },
+      });
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to send OTP");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main className="auth-shell">
       <AuthThemeToggle />
+
       <section className="auth-hero">
         <div className="cc-eyebrow">Campus Connect</div>
+
         <h1>Your campus, organized in one place.</h1>
+
         <p>
           Sign in to reach your feed, chats, lost-found reports, and every
           module your role can access.
@@ -69,10 +97,12 @@ const LoginPage = () => {
             <strong>Live feed</strong>
             <span>Post updates, react, comment, and follow classmates.</span>
           </div>
+
           <div className="auth-feature">
             <strong>Messaging</strong>
             <span>Continue one-to-one conversations with unread badges.</span>
           </div>
+
           <div className="auth-feature">
             <strong>Lost and found</strong>
             <span>Report, claim, and resolve campus items quickly.</span>
@@ -83,6 +113,7 @@ const LoginPage = () => {
       <section className="auth-panel-wrap">
         <form className="auth-panel" onSubmit={handleSubmit}>
           <h2>Welcome back</h2>
+
           <p>Use your campus account to continue.</p>
 
           {error && <div className="cc-alert cc-alert-error">{error}</div>}
@@ -90,6 +121,7 @@ const LoginPage = () => {
           <div className="cc-form-grid" style={{ marginTop: 16 }}>
             <label className="cc-field cc-field-full">
               <span className="cc-label">Email</span>
+
               <span style={{ position: "relative" }}>
                 <FiMail
                   style={{
@@ -99,6 +131,7 @@ const LoginPage = () => {
                     color: "var(--cc-muted)",
                   }}
                 />
+
                 <input
                   autoComplete="email"
                   className="cc-input"
@@ -115,6 +148,7 @@ const LoginPage = () => {
 
             <label className="cc-field cc-field-full">
               <span className="cc-label">Password</span>
+
               <span style={{ position: "relative" }}>
                 <FiLock
                   style={{
@@ -124,6 +158,7 @@ const LoginPage = () => {
                     color: "var(--cc-muted)",
                   }}
                 />
+
                 <input
                   autoComplete="current-password"
                   className="cc-input"
@@ -156,15 +191,21 @@ const LoginPage = () => {
           <p className="auth-switch" style={{ marginTop: 10 }}>
             <Link to="/forgot-password">Forgot password?</Link>
             {" | "}
-            {verificationEmail ? (
-              <Link
-                to={`/verify-email?email=${encodeURIComponent(verificationEmail)}`}
-              >
-                Verify email
-              </Link>
-            ) : (
-              <Link to="/verify-email">Verify email</Link>
-            )}
+            <button
+              type="button"
+              onClick={handleVerifyEmail}
+              style={{
+                background: "none",
+                border: "none",
+                color: "inherit",
+                cursor: "pointer",
+                textDecoration: "underline",
+                padding: 0,
+                font: "inherit",
+              }}
+            >
+              Verify email
+            </button>
           </p>
         </form>
       </section>
