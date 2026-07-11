@@ -1,22 +1,21 @@
 import { useState } from "react";
-import { useDispatch } from "react-redux";
-import { Link, useNavigate } from "react-router";
-import { FiLock, FiLogIn, FiMail } from "react-icons/fi";
+import { Link, useNavigate, useParams } from "react-router";
+import { FiLock, FiSave } from "react-icons/fi";
 
 import AuthThemeToggle from "../components/AuthThemeToggle";
-import { setCredentials } from "../features/auth/authSlice";
-import { loginUser } from "../services/authService";
+import { resetPassword } from "../services/authService";
 
-const LoginPage = () => {
+const ResetPasswordPage = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const { token } = useParams();
 
   const [formData, setFormData] = useState({
-    email: "",
-    password: "",
+    newPassword: "",
+    confirmPassword: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   const handleChange = (event) => {
     setFormData((current) => ({
@@ -28,17 +27,28 @@ const LoginPage = () => {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    if (formData.newPassword !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
     try {
       setLoading(true);
       setError("");
+      setMessage("");
 
-      const data = await loginUser(formData);
+      const data = await resetPassword({
+        token,
+        newPassword: formData.newPassword,
+      });
 
-      dispatch(setCredentials(data));
-      navigate("/dashboard/feed");
+      setMessage(data.message || "Password reset successful.");
+
+      window.setTimeout(() => {
+        navigate("/login");
+      }, 1500);
     } catch (err) {
-      const errorMessage = err.response?.data?.message || "Login failed";
-      setError(errorMessage);
+      setError(err.response?.data?.message || "Unable to reset password");
     } finally {
       setLoading(false);
     }
@@ -48,64 +58,40 @@ const LoginPage = () => {
     <main className="auth-shell">
       <AuthThemeToggle />
       <section className="auth-hero">
-        <div className="cc-eyebrow">Campus Connect</div>
-        <h1>Your campus, organized in one place.</h1>
+        <div className="cc-eyebrow">Reset password</div>
+        <h1>Create a fresh password and get back in.</h1>
         <p>
-          Sign in to reach your feed, chats, lost-found reports, and every
-          module your role can access.
+          The reset link from your email unlocks this form for a short time.
+          Once saved, the old password stops working.
         </p>
 
         <div className="auth-feature-grid">
           <div className="auth-feature">
-            <strong>Live feed</strong>
-            <span>Post updates, react, comment, and follow classmates.</span>
+            <strong>Short-lived link</strong>
+            <span>Only the email link can open this page.</span>
           </div>
           <div className="auth-feature">
-            <strong>Messaging</strong>
-            <span>Continue one-to-one conversations with unread badges.</span>
+            <strong>Fresh start</strong>
+            <span>All old refresh sessions are cleared after reset.</span>
           </div>
           <div className="auth-feature">
-            <strong>Lost and found</strong>
-            <span>Report, claim, and resolve campus items quickly.</span>
+            <strong>Back to sign in</strong>
+            <span>After saving, you can use the new password immediately.</span>
           </div>
         </div>
       </section>
 
       <section className="auth-panel-wrap">
         <form className="auth-panel" onSubmit={handleSubmit}>
-          <h2>Welcome back</h2>
-          <p>Use your campus account to continue.</p>
+          <h2>Set new password</h2>
+          <p>Choose a strong password and confirm it below.</p>
 
+          {message && <div className="cc-alert cc-alert-success">{message}</div>}
           {error && <div className="cc-alert cc-alert-error">{error}</div>}
 
           <div className="cc-form-grid" style={{ marginTop: 16 }}>
             <label className="cc-field cc-field-full">
-              <span className="cc-label">Email</span>
-              <span style={{ position: "relative" }}>
-                <FiMail
-                  style={{
-                    position: "absolute",
-                    left: 12,
-                    top: 13,
-                    color: "var(--cc-muted)",
-                  }}
-                />
-                <input
-                  autoComplete="email"
-                  className="cc-input"
-                  name="email"
-                  onChange={handleChange}
-                  placeholder="you@college.edu"
-                  required
-                  style={{ paddingLeft: 40 }}
-                  type="email"
-                  value={formData.email}
-                />
-              </span>
-            </label>
-
-            <label className="cc-field cc-field-full">
-              <span className="cc-label">Password</span>
+              <span className="cc-label">New password</span>
               <span style={{ position: "relative" }}>
                 <FiLock
                   style={{
@@ -116,15 +102,40 @@ const LoginPage = () => {
                   }}
                 />
                 <input
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   className="cc-input"
-                  name="password"
+                  name="newPassword"
                   onChange={handleChange}
-                  placeholder="Enter your password"
+                  placeholder="Enter new password"
                   required
                   style={{ paddingLeft: 40 }}
                   type="password"
-                  value={formData.password}
+                  value={formData.newPassword}
+                />
+              </span>
+            </label>
+
+            <label className="cc-field cc-field-full">
+              <span className="cc-label">Confirm password</span>
+              <span style={{ position: "relative" }}>
+                <FiLock
+                  style={{
+                    position: "absolute",
+                    left: 12,
+                    top: 13,
+                    color: "var(--cc-muted)",
+                  }}
+                />
+                <input
+                  autoComplete="new-password"
+                  className="cc-input"
+                  name="confirmPassword"
+                  onChange={handleChange}
+                  placeholder="Confirm new password"
+                  required
+                  style={{ paddingLeft: 40 }}
+                  type="password"
+                  value={formData.confirmPassword}
                 />
               </span>
             </label>
@@ -132,20 +143,16 @@ const LoginPage = () => {
 
           <button
             className="cc-button"
-            disabled={loading}
+            disabled={loading || !token}
             style={{ marginTop: 18, width: "100%" }}
             type="submit"
           >
-            <FiLogIn />
-            {loading ? "Signing in..." : "Sign in"}
+            <FiSave />
+            {loading ? "Saving..." : "Reset password"}
           </button>
 
           <p className="auth-switch">
-            New to Campus Connect? <Link to="/signup">Create an account</Link>
-          </p>
-
-          <p className="auth-switch" style={{ marginTop: 10 }}>
-            <Link to="/forgot-password">Forgot password?</Link>
+            <Link to="/login">Back to sign in</Link>
           </p>
         </form>
       </section>
@@ -153,4 +160,4 @@ const LoginPage = () => {
   );
 };
 
-export default LoginPage;
+export default ResetPasswordPage;

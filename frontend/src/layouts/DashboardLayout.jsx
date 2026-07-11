@@ -4,6 +4,7 @@ import { NavLink, Outlet } from "react-router";
 
 import Topbar from "../components/Topbar";
 import { getMyChats } from "../services/chatService";
+import { showPhoneNotification } from "../services/mobileNotificationService";
 import socket, { connectSocket, disconnectSocket } from "../socket/socket";
 import sidebarConfig from "../utils/sidebarConfig";
 
@@ -66,7 +67,23 @@ const DashboardLayout = () => {
 
     loadUnread();
 
-    const refreshUnread = () => {
+    const refreshUnread = (message) => {
+      const senderId = message?.sender?._id || message?.sender;
+
+      if (message?._id && String(senderId) !== String(user?._id)) {
+        showPhoneNotification({
+          title: message.sender?.name || "New message",
+          body:
+            message.content ||
+            (message.attachments?.length ? "Sent an attachment" : "Open chat to view it."),
+          data: {
+            link: "/dashboard/chat",
+            messageId: message._id,
+            roomId: message.chatRoomId,
+          },
+        });
+      }
+
       setTimeout(() => {
         if (alive) {
           loadUnread();

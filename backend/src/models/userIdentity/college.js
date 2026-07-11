@@ -24,6 +24,14 @@ const collegeSchema = new mongoose.Schema(
 
     logoUrl: String,
 
+    emailDomains: [
+      {
+        type: String,
+        trim: true,
+        lowercase: true,
+      },
+    ],
+
     isActive: {
       type: Boolean,
       default: true,

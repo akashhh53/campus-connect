@@ -14,6 +14,57 @@ const roles = [
   { value: "alumni", label: "Alumni" },
 ];
 
+const normalizeCollegeCode = (value = "") =>
+  String(value).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const getStudentEmailHint = (college) => {
+  if (!college) {
+    return "";
+  }
+
+  const primaryDomain =
+    Array.isArray(college.emailDomains) && college.emailDomains.length > 0
+      ? college.emailDomains[0]
+      : `${normalizeCollegeCode(college.code)}.ac.in`;
+
+  return primaryDomain;
+};
+
+const isStudentEmailCompatible = (email = "", college) => {
+  if (!email || !college) {
+    return false;
+  }
+
+  const [localPart = "", domain = ""] = String(email).trim().toLowerCase().split("@");
+  const collegeCode = normalizeCollegeCode(college.code);
+  const domainHint = getStudentEmailHint(college);
+  const normalizedDomain = domain.trim();
+  const allowedDomains = new Set(
+    [
+      domainHint,
+      ...(Array.isArray(college.emailDomains) ? college.emailDomains : []),
+    ]
+      .map((value) => String(value).trim().toLowerCase())
+      .filter(Boolean),
+  );
+
+  if (!localPart || !normalizedDomain || !collegeCode) {
+    return false;
+  }
+
+  const hasStudentTag = /(?:\.ug|\.pg)\d*/i.test(localPart);
+  const firstLabel = normalizedDomain.split(".")[0];
+
+  return (
+    hasStudentTag &&
+    (allowedDomains.has(normalizedDomain) ||
+      firstLabel === collegeCode ||
+      normalizedDomain === collegeCode ||
+      normalizedDomain.startsWith(`${collegeCode}.`) ||
+      normalizedDomain.includes(`.${collegeCode}.`))
+  );
+};
+
 const Signup = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -31,6 +82,16 @@ const Signup = () => {
   const [loadingColleges, setLoadingColleges] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  const selectedCollege = colleges.find(
+    (college) => college._id === formData.collegeId,
+  );
+  const studentEmailHint = getStudentEmailHint(selectedCollege);
+  const studentEmailMismatch =
+    formData.role === "student" &&
+    Boolean(formData.email) &&
+    Boolean(selectedCollege) &&
+    !isStudentEmailCompatible(formData.email, selectedCollege);
 
   useEffect(() => {
     const loadColleges = async () => {
@@ -61,13 +122,46 @@ const Signup = () => {
     event.preventDefault();
 
     try {
+      if (studentEmailMismatch) {
+        setError(
+          `Student email must match ${studentEmailHint} and include .ug or .pg in the username.`,
+        );
+        return;
+      }
+
       setSubmitting(true);
       setError("");
       const data = await registerUser(formData);
 
+      if (data.requiresEmailVerification) {
+        navigate(
+          `/verify-email?email=${encodeURIComponent(data.email || formData.email)}`,
+          {
+            state: {
+              notice: data.message,
+            },
+          },
+        );
+        return;
+      }
+
       dispatch(setCredentials(data));
       navigate("/dashboard/feed");
     } catch (err) {
+      if (err.response?.data?.requiresEmailVerification) {
+        navigate(
+          `/verify-email?email=${encodeURIComponent(
+            err.response?.data?.email || formData.email,
+          )}`,
+          {
+            state: {
+              notice: err.response?.data?.message,
+            },
+          },
+        );
+        return;
+      }
+
       setError(
         err.response?.data?.errors ||
           err.response?.data?.message ||
@@ -99,8 +193,8 @@ const Signup = () => {
             <span>Feed and lost-found results stay tied to your college.</span>
           </div>
           <div className="auth-feature">
-            <strong>Ready to use</strong>
-            <span>Your account is signed in immediately after registration.</span>
+            <strong>Verification first</strong>
+            <span>Student accounts unlock only after the email OTP is confirmed.</span>
           </div>
         </div>
       </section>
@@ -137,6 +231,28 @@ const Signup = () => {
                 type="email"
                 value={formData.email}
               />
+              {formData.role === "student" && selectedCollege && (
+                <span
+                  style={{
+                    color: studentEmailMismatch
+                      ? "var(--cc-danger)"
+                      : "var(--cc-muted)",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  Student email should look like
+                  {" "}
+                  <strong>
+                    name.ug23@{studentEmailHint || "yourcollege.ac.in"}
+                  </strong>
+                  {" "}
+                  or
+                  {" "}
+                  <strong>name.pg23@{studentEmailHint || "yourcollege.ac.in"}</strong>.
+                </span>
+              )}
             </label>
 
             <label className="cc-field">

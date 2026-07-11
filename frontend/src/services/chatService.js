@@ -35,7 +35,7 @@ export const openChat = async (recipientId) => {
   return res.data;
 };
 
-export const sendMessage = async (data) => {
+export const sendMessage = async (data, options = {}) => {
   const hasAttachments = data.attachments?.length;
   const payload = hasAttachments ? new FormData() : data;
 
@@ -48,6 +48,7 @@ export const sendMessage = async (data) => {
 
   const res = await api.post("/chat/send", payload, {
     headers: hasAttachments ? { "Content-Type": "multipart/form-data" } : undefined,
+    onUploadProgress: options.onUploadProgress,
   });
 
   clearChatCache(data.roomId);

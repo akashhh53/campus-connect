@@ -9,6 +9,11 @@ const jwt = require("jsonwebtoken");
 const { generateAccessToken, generateRefreshToken } = require("../utils/token");
 const generateOTP = require("../utils/otp");
 const sendMail = require("../utils/mailer");
+const {
+  normalizeEmail,
+  studentEmailMatchesCollege,
+  getCollegeEmailDomains,
+} = require("../utils/studentEmail");
 const mongoose = require("mongoose");
 const redisClient = require("../config/redis");
 const crypto = require("crypto");
@@ -22,7 +27,10 @@ const frontendURLs = [
   .map(normalizeURL)
   .filter(Boolean);
 
-const getFrontendURL = () => frontendURLs[0] || "http://localhost:5173";
+const getFrontendURL = (req) =>
+  normalizeURL(req?.headers?.origin || req?.get?.("origin")) ||
+  frontendURLs[0] ||
+  "http://localhost:5173";
 
 const isProduction =
   process.env.NODE_ENV === "production" ||
@@ -93,6 +101,50 @@ const createAuthSession = async (user, req, res) => {
   setAuthCookies(res, accessToken, refreshToken);
 
   return { accessToken, refreshToken };
+};
+
+const buildStudentEmailHint = (college) => {
+  const emailDomains = getCollegeEmailDomains(college);
+
+  if (emailDomains.length > 0) {
+    return emailDomains[0];
+  }
+
+  return college?.code ? `${String(college.code).trim().toLowerCase()}.ac.in` : "";
+};
+
+const issueVerificationOTP = async (user) => {
+  const { code, hash, expiresAt } = await generateOTP();
+
+  user.otp = {
+    code: hash,
+    expiresAt,
+  };
+  user.lastOTPSentAt = new Date();
+  user.otpAttempts = 0;
+
+  await user.save();
+
+  return code;
+};
+
+const sendVerificationOTPEmail = async (user, context = "verification") => {
+  const otpCode = await issueVerificationOTP(user);
+  const minutesValid = 10;
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827;">
+      <h2 style="margin:0 0 12px;">Campus Connect email verification</h2>
+      <p style="margin:0 0 12px;">Use this OTP to verify your campus email${context === "registration" ? " and finish registration" : ""}:</p>
+      <div style="font-size:28px;letter-spacing:6px;font-weight:800;padding:16px 18px;border:1px solid #d1d5db;border-radius:12px;display:inline-block;background:#f9fafb;">${otpCode}</div>
+      <p style="margin:12px 0 0;">This code expires in ${minutesValid} minutes.</p>
+      <p style="margin:8px 0 0;color:#6b7280;">If you did not request this, you can ignore this email.</p>
+    </div>
+  `;
+
+  await sendMail(user.email, "Campus Connect - Verify your email", html);
+
+  return otpCode;
 };
 
 //register global admin
@@ -245,7 +297,7 @@ const sendAdminInvite = async (req, res) => {
     });
 
     // 6️⃣ Generate frontend link
-    const frontendURL = getFrontendURL();
+    const frontendURL = getFrontendURL(req);
     const link = `${frontendURL}/accept-admin-invite?token=${inviteToken}`;
 
     // 7️⃣ Send email
@@ -376,19 +428,43 @@ const registerUser = async (req, res) => {
       collegeId,
     } = req.body;
 
+    const normalizedEmail = normalizeEmail(email);
+    const normalizedName = typeof name === "string" ? name.trim() : name;
+    const normalizedPhone = typeof phone === "string" ? phone.trim() : phone;
+    const normalizedRoleName =
+      typeof roleName === "string" ? roleName.trim() : roleName;
+
     // 1️⃣ Find the role in DB
-    const role = await Role.findOne({ name: roleName });
+    const role = await Role.findOne({ name: normalizedRoleName });
     if (!role) return res.status(400).json({ message: "Role not found" });
 
-    // 2️⃣ Check if email or phone already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser)
-      return res
-        .status(400)
-        .json({ message: "User with this email already exists" });
+    const college = await College.findById(collegeId).select(
+      "name code emailDomains",
+    );
+    if (!college) {
+      return res.status(404).json({ message: "College not found" });
+    }
 
-    if (phone) {
-      const existingPhone = await User.findOne({ phone });
+    const isStudentRole = role.name === "student";
+    if (isStudentRole && !studentEmailMatchesCollege(normalizedEmail, college)) {
+      return res.status(400).json({
+        message: `Student email must match the selected college,  Example: student.ug23@${buildStudentEmailHint(college)} or any email id that associated with this college`,
+      });
+    }
+
+    // 2️⃣ Check if email or phone already exists
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser)
+      return res.status(409).json({
+        message: existingUser.isVerified?.email
+          ? "User with this email already exists"
+          : "This email is already registered but not verified yet. Please verify the OTP.",
+        requiresEmailVerification: !existingUser.isVerified?.email,
+        email: existingUser.email,
+      });
+
+    if (normalizedPhone) {
+      const existingPhone = await User.findOne({ phone: normalizedPhone });
       if (existingPhone)
         return res
           .status(400)
@@ -398,10 +474,10 @@ const registerUser = async (req, res) => {
     // 3️⃣ Validate input
     try {
       validate({
-        name,
-        email,
+        name: normalizedName,
+        email: normalizedEmail,
         password,
-        phone,
+        phone: normalizedPhone,
         dateOfBirth,
         role: role._id,
         collegeId,
@@ -418,16 +494,45 @@ const registerUser = async (req, res) => {
 
     // 5️⃣ Create user
     const newUser = await User.create({
-      name,
-      email,
+      name: normalizedName,
+      email: normalizedEmail,
       password: hashedPassword,
-      phone,
+      phone: normalizedPhone,
       dateOfBirth,
       role: role._id,
       collegeId,
       provider: "local",
-      isVerified: { email: true }, // optional, can set false if email verification is required
+      isVerified: { email: !isStudentRole },
     });
+
+    let verificationEmailSent = true;
+
+    if (isStudentRole) {
+      try {
+        await sendVerificationOTPEmail(newUser, "registration");
+      } catch (mailError) {
+        verificationEmailSent = false;
+        console.error("Student verification email error:", mailError);
+      }
+    }
+
+    if (isStudentRole) {
+      return res.status(201).json({
+        message: verificationEmailSent
+          ? "Student registered successfully. Check your email for the OTP."
+          : "Student registered successfully, but the OTP email could not be sent. Please request a resend.",
+        requiresEmailVerification: true,
+        verificationEmailSent,
+        email: newUser.email,
+        user: {
+          _id: newUser._id,
+          name: newUser.name,
+          email: newUser.email,
+          role: role.name,
+          collegeId: newUser.collegeId,
+        },
+      });
+    }
 
     // 6️⃣ Generate tokens/session
     const { accessToken } = await createAuthSession(newUser, req, res);
@@ -435,7 +540,9 @@ const registerUser = async (req, res) => {
 
     // 8️⃣ Send response
     res.status(201).json({
-      message: `${roleName.charAt(0).toUpperCase() + roleName.slice(1)} registered successfully`,
+      message: `${
+        role.name.charAt(0).toUpperCase() + role.name.slice(1)
+      } registered successfully`,
       accessToken,
       user: newUser,
     });
@@ -454,21 +561,199 @@ const registerUser = async (req, res) => {
   }
 };
 
+const requestOTP = async (req, res) => {
+  try {
+    const normalizedEmail = normalizeEmail(req.body.email);
+
+    if (!normalizedEmail) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email: normalizedEmail }).populate(
+      "role",
+      "name permissions allowedModules",
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.isVerified?.email) {
+      return res.status(400).json({ message: "Email is already verified" });
+    }
+
+    if (
+      user.lastOTPSentAt &&
+      Date.now() - new Date(user.lastOTPSentAt).getTime() < 30 * 1000
+    ) {
+      return res.status(429).json({
+        message: "Please wait before requesting another OTP",
+      });
+    }
+
+    await sendVerificationOTPEmail(user, "verification");
+
+    return res.status(200).json({
+      message: "Verification OTP sent successfully",
+    });
+  } catch (error) {
+    console.error("Request OTP Error:", error);
+    return res.status(500).json({
+      message: "Failed to send verification OTP",
+      error: error.message,
+    });
+  }
+};
+
+const verifyOTP = async (req, res) => {
+  try {
+    const normalizedEmail = normalizeEmail(req.body.email);
+    const otp = typeof req.body.otp === "string" ? req.body.otp.trim() : "";
+
+    if (!normalizedEmail || !otp) {
+      return res
+        .status(400)
+        .json({ message: "Email and OTP are required" });
+    }
+
+    const user = await User.findOne({ email: normalizedEmail })
+      .select("+otp.code +otp.expiresAt +otpAttempts +lastOTPSentAt +password")
+      .populate("role", "name permissions allowedModules")
+      .populate("collegeId", "name code emailDomains location");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.isVerified?.email) {
+      return res.status(400).json({ message: "Email is already verified" });
+    }
+
+    if (!user.otp?.code || !user.otp?.expiresAt) {
+      return res.status(400).json({
+        message: "OTP not found. Please request a new verification code.",
+      });
+    }
+
+    if (user.otp.expiresAt.getTime() < Date.now()) {
+      user.otp = undefined;
+      user.lastOTPSentAt = undefined;
+      user.otpAttempts = 0;
+      await user.save();
+
+      return res.status(400).json({
+        message: "OTP expired. Please request a new verification code.",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(otp, user.otp.code);
+
+    if (!isMatch) {
+      user.otpAttempts = (user.otpAttempts || 0) + 1;
+
+      if (user.otpAttempts >= 5) {
+        user.otp = undefined;
+        user.lastOTPSentAt = undefined;
+        user.otpAttempts = 0;
+        await user.save();
+
+        return res.status(429).json({
+          message:
+            "Too many invalid attempts. Please request a new verification code.",
+        });
+      }
+
+      await user.save();
+
+      return res.status(400).json({
+        message: "Invalid OTP",
+        remainingAttempts: 5 - user.otpAttempts,
+      });
+    }
+
+    user.isVerified.email = true;
+    user.otp = undefined;
+    user.lastOTPSentAt = undefined;
+    user.otpAttempts = 0;
+
+    const { accessToken } = await createAuthSession(user, req, res);
+    await user.populate("role", "name permissions allowedModules");
+    await user.populate("collegeId", "name code emailDomains location");
+
+    return res.status(200).json({
+      message: "Email verified successfully",
+      accessToken,
+      user,
+    });
+  } catch (error) {
+    console.error("Verify OTP Error:", error);
+    return res.status(500).json({
+      message: "Failed to verify OTP",
+      error: error.message,
+    });
+  }
+};
+
+const resendOTP = async (req, res) => {
+  try {
+    const normalizedEmail = normalizeEmail(req.body.email);
+
+    if (!normalizedEmail) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email: normalizedEmail }).populate(
+      "role",
+      "name permissions allowedModules",
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.isVerified?.email) {
+      return res.status(400).json({ message: "Email is already verified" });
+    }
+
+    if (
+      user.lastOTPSentAt &&
+      Date.now() - new Date(user.lastOTPSentAt).getTime() < 30 * 1000
+    ) {
+      return res.status(429).json({
+        message: "Please wait before requesting another OTP",
+      });
+    }
+
+    await sendVerificationOTPEmail(user, "verification");
+
+    return res.status(200).json({
+      message: "Verification OTP resent successfully",
+    });
+  } catch (error) {
+    console.error("Resend OTP Error:", error);
+    return res.status(500).json({
+      message: "Failed to resend verification OTP",
+      error: error.message,
+    });
+  }
+};
+
 /**
  * Unified login for all roles (student, teacher, alumni, admin, globalAdmin)
  */
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       return res.status(400).json({
         message: "Email and password are required",
       });
     }
 
     const user = await User.findOne({
-      email,
+      email: normalizedEmail,
     })
       .select("+password")
       .populate("role", "name permissions allowedModules");
@@ -811,10 +1096,12 @@ const updateProfile = async (req, res) => {
 
 const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ message: "Email is required" });
+    const normalizedEmail = normalizeEmail(req.body.email);
+    if (!normalizedEmail) {
+      return res.status(400).json({ message: "Email is required" });
+    }
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) return res.status(404).json({ message: "User not found" });
 
     // Generate reset token
@@ -829,7 +1116,7 @@ const forgotPassword = async (req, res) => {
     await user.save();
 
     // Email content
-    const resetUrl = `${getFrontendURL()}/reset-password/${resetToken}`;
+    const resetUrl = `${getFrontendURL(req)}/reset-password/${resetToken}`;
     const html = `
       <h3>Password Reset Request</h3>
       <p>Click the link below to reset your password. The link expires in 15 minutes:</p>
@@ -841,7 +1128,7 @@ const forgotPassword = async (req, res) => {
     res.status(200).json({ message: "Password reset email sent" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Server error", message: error.message });
+    res.status(500).json({ message: error.message || "Server error" });
   }
 };
 
@@ -871,13 +1158,14 @@ const resetPassword = async (req, res) => {
     // Clear reset fields
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
+    user.refreshTokens = [];
 
     await user.save();
 
     res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: error.message || "Server error" });
   }
 };
 
@@ -926,7 +1214,7 @@ const getColleges = async (req, res) => {
   try {
     const colleges = await College.find({ isActive: true })
       .sort({ name: 1 })
-      .select("name code location logoUrl");
+      .select("name code location logoUrl emailDomains");
 
     res.status(200).json({
       success: true,
@@ -943,7 +1231,7 @@ const getColleges = async (req, res) => {
 
 const createCollege = async (req, res) => {
   try {
-    const { name, code, location, logoUrl } = req.body;
+    const { name, code, location, logoUrl, emailDomains } = req.body;
 
     // 🔐 Only global admin allowed
     const roleName = req.user.role?.name;
@@ -979,6 +1267,16 @@ const createCollege = async (req, res) => {
         country: location?.country || "India",
       },
       logoUrl,
+      emailDomains: Array.isArray(emailDomains)
+        ? emailDomains
+            .map((domain) => String(domain).trim().toLowerCase())
+            .filter(Boolean)
+        : typeof emailDomains === "string"
+          ? emailDomains
+              .split(",")
+              .map((domain) => domain.trim().toLowerCase())
+              .filter(Boolean)
+          : [],
     });
 
     res.status(201).json({
@@ -1048,6 +1346,9 @@ module.exports = {
   acceptAdminInvite,
   registerGlobalAdmin,
   registerUser,
+  requestOTP,
+  verifyOTP,
+  resendOTP,
   loginUser,
   refreshAccessToken,
   socialLogin,

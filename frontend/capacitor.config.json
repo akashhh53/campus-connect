@@ -1,5 +1,12 @@
 {
   "appId": "com.akash.campusconnect",
   "appName": "CampusConnect",
-  "webDir": "dist"
+  "webDir": "dist",
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_campus_connect",
+      "iconColor": "#C8462C",
+      "sound": "default"
+    }
+  }
 }

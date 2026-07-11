@@ -28,7 +28,9 @@ const PostCard = memo(
     const [liked, setLiked] = useState(!!post.userReaction);
     const [showComments, setShowComments] = useState(forceShowComments);
     const [likesCount, setLikesCount] = useState(post.reactionsCount || 0);
-    const [commentsCount, setCommentsCount] = useState(post.commentCount || 0);
+    const [commentsCount, setCommentsCount] = useState(
+      post.commentsCount ?? post.commentCount ?? 0,
+    );
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [showFullText, setShowFullText] = useState(false);
     const [saved, setSaved] = useState(post.isSaved || false);
@@ -453,7 +455,7 @@ const PostCard = memo(
 
           <button
             onClick={handleSave}
-            className={`action-btn ${saved ? "active" : ""}`}
+            className={`action-btn save-action ${saved ? "active" : ""}`}
             aria-label={saved ? "Unsave" : "Save"}
             disabled={saving}
           >
@@ -1030,6 +1032,18 @@ const PostCard = memo(
             background: var(--cc-accent-soft);
             color: var(--cc-accent);
             border-color: color-mix(in srgb, var(--cc-accent) 24%, var(--cc-border));
+          }
+
+          .save-action:hover:not(:disabled),
+          .save-action.active {
+            background: var(--cc-primary-soft);
+            color: var(--cc-primary-dark);
+            border-color: color-mix(in srgb, var(--cc-primary) 30%, var(--cc-border));
+          }
+
+          .save-action.active .action-icon svg {
+            fill: currentColor;
+            stroke: currentColor;
           }
 
           .action-btn:active:not(:disabled) {

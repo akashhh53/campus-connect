@@ -4,6 +4,9 @@ import { useEffect } from "react";
 
 import LoginPage from "./pages/LoginPage";
 import Signup from "./pages/Signup";
+import VerifyEmailPage from "./pages/VerifyEmailPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
 import ModuleProtectedRoute from "./routes/ModuleProtectedRoute";
@@ -91,6 +94,9 @@ const App = () => {
       <Route path="/" element={<Navigate to="/dashboard/feed" replace />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
       <Route
         path="/dashboard"

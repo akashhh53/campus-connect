@@ -9,6 +9,7 @@ import {
   FiMenu,
   FiMessageCircle,
   FiMoon,
+  FiSmartphone,
   FiSun,
   FiX,
   FiUser,
@@ -16,6 +17,13 @@ import {
 
 import { logout } from "../features/auth/authSlice";
 import { logoutUser } from "../services/authService";
+import {
+  arePhoneNotificationsEnabled,
+  disablePhoneNotifications,
+  requestPhoneNotifications,
+  showPhoneNotification,
+  syncPhoneNotificationState,
+} from "../services/mobileNotificationService";
 import { getNotifications, markAllRead, markRead } from "../services/notificationService";
 import socket from "../socket/socket";
 
@@ -43,6 +51,10 @@ const Topbar = ({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [phoneNotificationsEnabled, setPhoneNotificationsEnabled] = useState(
+    () => arePhoneNotificationsEnabled(),
+  );
+  const [phoneNotificationBusy, setPhoneNotificationBusy] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
@@ -171,11 +183,60 @@ const Topbar = ({
   }, [handleScroll, notificationsOpen]);
 
   useEffect(() => {
+    let alive = true;
+
+    syncPhoneNotificationState()
+      .then(({ enabled }) => {
+        if (alive) {
+          setPhoneNotificationsEnabled(enabled);
+        }
+      })
+      .catch((error) => console.log(error));
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const handlePhoneNotificationToggle = async () => {
+    if (phoneNotificationBusy) return;
+
+    if (phoneNotificationsEnabled) {
+      disablePhoneNotifications();
+      setPhoneNotificationsEnabled(false);
+      return;
+    }
+
+    try {
+      setPhoneNotificationBusy(true);
+      const { enabled } = await requestPhoneNotifications();
+      setPhoneNotificationsEnabled(enabled);
+
+      if (!enabled) {
+        window.alert("Phone notification permission was not granted.");
+      }
+    } catch (error) {
+      console.log(error);
+      window.alert("Unable to enable phone notifications on this device.");
+    } finally {
+      setPhoneNotificationBusy(false);
+    }
+  };
+
+  useEffect(() => {
     const initialLoad = window.setTimeout(fetchNotificationCount, 0);
 
     const handleNotification = (notification) => {
       setNotifications((prev) => [notification, ...prev]);
       setNotificationCount((prev) => prev + 1);
+      showPhoneNotification({
+        title: notification.title || "Campus Connect",
+        body: notification.message || "You have a new campus update.",
+        data: {
+          link: notification.link,
+          notificationId: notification._id,
+        },
+      });
     };
 
     const handleRemove = (notificationId) => {
@@ -334,6 +395,17 @@ const Topbar = ({
                   <h3>Notifications</h3>
                   <p>Campus updates and activity</p>
                 </div>
+                <button
+                  className={`notification-phone-toggle ${
+                    phoneNotificationsEnabled ? "is-enabled" : ""
+                  }`}
+                  disabled={phoneNotificationBusy}
+                  onClick={handlePhoneNotificationToggle}
+                  type="button"
+                >
+                  <FiSmartphone />
+                  {phoneNotificationsEnabled ? "Phone alerts on" : "Enable phone alerts"}
+                </button>
               </div>
 
               <div className="notification-list" ref={notificationsListRef}>

@@ -13,14 +13,16 @@ const parseAttachments = (attachments) => {
     const parsed = JSON.parse(attachments);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return [];
+    return typeof attachments === "string" && attachments.trim()
+      ? [attachments.trim()]
+      : [];
   }
 };
 
 const populateMessage = (messageId) =>
   Message.findById(messageId)
     .populate("sender", "_id name profilePicture")
-    .populate({ path: "replyTo", select: "_id content sender createdAt" });
+    .populate({ path: "replyTo", select: "_id content attachments sender createdAt" });
 
 const createOrOpenRoom = async (req, res) => {
   try {
@@ -281,6 +283,7 @@ const getMessages = async (req, res) => {
 
     const messages = await Message.find({
       chatRoomId: roomId,
+      isDeleted: false,
       deletedFor: { $ne: user._id },
     })
 
@@ -289,7 +292,7 @@ const getMessages = async (req, res) => {
       .populate({
         path: "replyTo",
 
-        select: "_id content sender createdAt",
+        select: "_id content attachments sender createdAt",
       })
 
       .sort({
@@ -341,36 +344,58 @@ const getMyChats = async (req, res) => {
 
     const activeRooms = rooms
       .map((participant) => participant.chatRoomId)
-      .filter((room) => room && room.lastMessage);
+      .filter(Boolean);
     const roomIds = activeRooms.map((room) => room._id);
-    const otherParticipants = roomIds.length
-      ? await ChatParticipant.find({
-          chatRoomId: { $in: roomIds },
-          userId: { $ne: user._id },
-        })
-          .populate("userId", "_id name profilePicture")
-          .lean()
-      : [];
+    const [otherParticipants, visibleLastMessages] = roomIds.length
+      ? await Promise.all([
+          ChatParticipant.find({
+            chatRoomId: { $in: roomIds },
+            userId: { $ne: user._id },
+          })
+            .populate("userId", "_id name profilePicture")
+            .lean(),
+          Message.find({
+            chatRoomId: { $in: roomIds },
+            isDeleted: false,
+            deletedFor: { $ne: user._id },
+          })
+            .sort({ createdAt: -1 })
+            .populate("sender", "_id name")
+            .lean(),
+        ])
+      : [[], []];
     const otherUserByRoom = new Map(
       otherParticipants.map((participant) => [
         String(participant.chatRoomId),
         participant.userId,
       ]),
     );
+    const lastMessageByRoom = new Map();
+
+    visibleLastMessages.forEach((message) => {
+      const roomId = String(message.chatRoomId);
+
+      if (!lastMessageByRoom.has(roomId)) {
+        lastMessageByRoom.set(roomId, message);
+      }
+    });
 
     const chats = rooms.map((participant) => {
       const room = participant.chatRoomId;
+      const visibleLastMessage = lastMessageByRoom.get(String(room?._id));
 
-      if (!room || !room.lastMessage) return null;
+      if (!room || !visibleLastMessage) return null;
 
       return {
         roomId: room._id,
 
         user: otherUserByRoom.get(String(room._id)),
 
-        lastMessage: room.lastMessage?.content || "",
+        lastMessage:
+          visibleLastMessage.content ||
+          (visibleLastMessage.attachments?.length ? "Attachment" : ""),
 
-        lastMessageAt: room.lastMessageAt,
+        lastMessageAt: visibleLastMessage.createdAt,
 
         unreadCount: participant.unreadCount,
         isOnline: isUserOnline(otherUserByRoom.get(String(room._id))?._id),
@@ -408,15 +433,38 @@ const deleteMessage = async (req, res) => {
       return res.status(404).json({ success: false, message: "Message not found" });
     }
 
-    message.isDeleted = true;
-    message.content = "This message was deleted.";
-    message.attachments = [];
-    message.reactions = [];
-    await message.save();
+    const roomId = message.chatRoomId;
+    const messageId = message._id;
 
-    getIO().to(String(message.chatRoomId)).emit("message_deleted", {
-      messageId: message._id,
-      roomId: message.chatRoomId,
+    await message.deleteOne();
+
+    const latestMessage = await Message.findOne({
+      chatRoomId: roomId,
+      isDeleted: false,
+    })
+      .sort({ createdAt: -1 })
+      .select("_id createdAt")
+      .lean();
+
+    await ChatRoom.findByIdAndUpdate(roomId, {
+      $set: {
+        lastMessage: latestMessage?._id || null,
+        lastMessageAt: latestMessage?.createdAt || null,
+      },
+    });
+
+    const io = getIO();
+    io.to(String(roomId)).emit("message_deleted", {
+      messageId,
+      roomId,
+    });
+
+    const participants = await ChatParticipant.find({ chatRoomId: roomId })
+      .select("userId")
+      .lean();
+
+    participants.forEach((participant) => {
+      io.to(String(participant.userId)).emit("chat_updated");
     });
 
     return res.json({ success: true });

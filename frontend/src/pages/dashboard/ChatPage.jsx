@@ -17,13 +17,15 @@ import socket from "../../socket/socket";
 import { useNavigate } from "react-router";
 import {
   FiArrowLeft,
+  FiDownload,
   FiMic,
   FiMicOff,
-  FiMoreHorizontal,
+  FiMoreVertical,
+  FiShare2,
+  FiImage,
   FiPaperclip,
   FiPhone,
   FiPhoneOff,
-  FiSmile,
   FiTrash2,
   FiVideo,
   FiVideoOff,
@@ -48,6 +50,222 @@ const getColorFromName = (name) => {
   return colors[Math.abs(hash) % colors.length];
 };
 
+const MAX_CHAT_ATTACHMENTS = 4;
+const MAX_CHAT_ATTACHMENT_SIZE = 30 * 1024 * 1024;
+const MAX_FORWARD_TARGETS = 5;
+
+const isSupportedChatAttachment = (file) =>
+  file &&
+  (file.type.startsWith("image/") || file.type.startsWith("video/")) &&
+  file.size <= MAX_CHAT_ATTACHMENT_SIZE;
+
+const getAttachmentUrl = (attachment) =>
+  typeof attachment === "string"
+    ? attachment
+    : attachment?.url || attachment?.previewUrl || "";
+
+const getAttachmentName = (attachment) =>
+  typeof attachment === "string"
+    ? attachment.split("/").pop()?.split("?")[0] || "Attachment"
+    : attachment?.name || "Attachment";
+
+const isVideoAttachment = (attachment) => {
+  const url = getAttachmentUrl(attachment);
+  const type = typeof attachment === "string" ? "" : attachment?.type || "";
+
+  return type.startsWith("video/") || /\.(mp4|webm|mov)(?:\?|$)/i.test(url);
+};
+
+const formatFileSize = (size = 0) => {
+  if (!size) return "";
+
+  if (size < 1024 * 1024) {
+    return `${Math.max(1, Math.round(size / 1024))} KB`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(size >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+};
+
+const createAttachmentDraft = (file) => ({
+  id: `${file.name}-${file.lastModified}-${file.size}-${Math.random().toString(36).slice(2)}`,
+  file,
+  name: file.name,
+  size: file.size,
+  type: file.type,
+  previewUrl: URL.createObjectURL(file),
+});
+
+const revokeAttachmentPreviews = (items = []) => {
+  items.forEach((item) => {
+    const url = getAttachmentUrl(item);
+
+    if (url?.startsWith("blob:")) {
+      URL.revokeObjectURL(url);
+    }
+  });
+};
+
+const getSenderId = (msg) => msg?.sender?._id || msg?.sender;
+
+const isMatchingPendingMessage = (pending, incoming) =>
+  pending?.isPending &&
+  String(pending.chatRoomId) === String(incoming?.chatRoomId) &&
+  String(getSenderId(pending)) === String(getSenderId(incoming)) &&
+  (pending.content || "") === (incoming?.content || "");
+
+const mergeIncomingMessage = (current, incoming, tempId) => {
+  if (!incoming?._id) return current;
+
+  const alreadyHasIncoming = current.some((item) => item._id === incoming._id);
+  let inserted = alreadyHasIncoming;
+
+  const next = current.reduce((items, item) => {
+    if (item._id === incoming._id) {
+      items.push(incoming);
+      return items;
+    }
+
+    const shouldReplace =
+      (tempId && item._id === tempId) || isMatchingPendingMessage(item, incoming);
+
+    if (shouldReplace) {
+      revokeAttachmentPreviews(item.attachmentPreviews);
+
+      if (!inserted) {
+        items.push(incoming);
+        inserted = true;
+      }
+
+      return items;
+    }
+
+    items.push(item);
+    return items;
+  }, []);
+
+  if (!inserted) {
+    next.push(incoming);
+  }
+
+  return next;
+};
+
+const getVisibleMessages = (items = []) =>
+  items.filter((item) => !item?.isDeleted);
+
+const getMessageMediaItems = (msg) => {
+  const mediaItems = msg?.attachmentPreviews?.length
+    ? msg.attachmentPreviews
+    : (msg?.attachments || []).map((attachment, index) => ({
+        id: `${getAttachmentUrl(attachment)}-${index}`,
+        name: getAttachmentName(attachment),
+        url: getAttachmentUrl(attachment),
+        type: isVideoAttachment(attachment) ? "video" : "image",
+      }));
+
+  return mediaItems.filter((attachment) => Boolean(getAttachmentUrl(attachment)));
+};
+
+const getReplyPreviewLabel = (msg) => {
+  const text = msg?.content?.trim();
+
+  if (text) return text;
+
+  const mediaItems = getMessageMediaItems(msg);
+
+  if (!mediaItems.length) return "Message";
+
+  return isVideoAttachment(mediaItems[0]) ? "Video" : "Photo";
+};
+
+const ReplyPreview = ({ msg, prefix }) => {
+  const mediaItems = getMessageMediaItems(msg);
+  const media = mediaItems[0];
+  const mediaUrl = media ? getAttachmentUrl(media) : "";
+  const isVideo = media ? isVideoAttachment(media) : false;
+
+  return (
+    <div className="chat-reply-summary">
+      <span className="chat-reply-copy">
+        {prefix && <small>{prefix}</small>}
+        <strong>{getReplyPreviewLabel(msg)}</strong>
+      </span>
+      {mediaUrl && (
+        <span className="chat-reply-thumb" aria-hidden="true">
+          {isVideo ? (
+            <video muted playsInline preload="metadata" src={mediaUrl} />
+          ) : (
+            <img alt="" src={mediaUrl} />
+          )}
+          {isVideo && <span>▶</span>}
+        </span>
+      )}
+    </div>
+  );
+};
+
+const MessageMedia = ({ msg }) => {
+  const visibleMediaItems = getMessageMediaItems(msg);
+
+  if (!visibleMediaItems.length) return null;
+
+  const isUploading = msg.isPending && !msg.sendError;
+  const progress = typeof msg.uploadProgress === "number" ? msg.uploadProgress : null;
+  const layoutClass = visibleMediaItems.length === 1 ? "is-single" : "is-grid";
+
+  return (
+    <div className={`chat-message-media ${layoutClass} ${isUploading ? "is-uploading" : ""}`}>
+      {visibleMediaItems.map((attachment, index) => {
+        const url = getAttachmentUrl(attachment);
+        const name = getAttachmentName(attachment);
+        const isVideo = isVideoAttachment(attachment);
+
+        return (
+          <div
+            className={`chat-media-tile ${isVideo ? "is-video" : "is-image"}`}
+            key={attachment.id || `${url}-${index}`}
+          >
+            {isVideo ? (
+              <video controls controlsList="nodownload" preload="metadata" src={url} />
+            ) : (
+              <img alt={name} loading="lazy" src={url} />
+            )}
+
+            <span className="chat-media-kind">
+              {isVideo ? "Video" : "Image"}
+            </span>
+            <a
+              aria-label={`Download ${name}`}
+              className="chat-media-download"
+              download={name}
+              href={url}
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+              rel="noopener noreferrer"
+              target="_blank"
+              title="Download"
+            >
+              <FiDownload size={15} />
+            </a>
+
+            {isUploading && (
+              <div className="chat-media-upload-overlay">
+                <div className="chat-media-progress-ring">
+                  {progress == null ? "..." : `${progress}%`}
+                </div>
+                <span>Sending</span>
+                <div className="chat-media-progress-track">
+                  <span style={{ width: `${progress ?? 12}%` }} />
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 // Avatar component
 const Avatar = ({ user, size = 48, onClick, isOnline = false }) => {
   const name = user?.name || "User";
@@ -55,19 +273,19 @@ const Avatar = ({ user, size = 48, onClick, isOnline = false }) => {
   const backgroundColor = getColorFromName(name);
 
   const avatar = user?.profilePicture ? (
-      <img
-        src={user.profilePicture}
-        alt={name}
-        onClick={onClick}
-        style={{
-          width: size + "px",
-          height: size + "px",
-          borderRadius: "50%",
-          cursor: onClick ? "pointer" : "default",
-          objectFit: "cover",
-        }}
-      />
-    ) : (
+    <img
+      src={user.profilePicture}
+      alt={name}
+      onClick={onClick}
+      style={{
+        width: size + "px",
+        height: size + "px",
+        borderRadius: "50%",
+        cursor: onClick ? "pointer" : "default",
+        objectFit: "cover",
+      }}
+    />
+  ) : (
     <div
       onClick={onClick}
       style={{
@@ -102,6 +320,278 @@ const Avatar = ({ user, size = 48, onClick, isOnline = false }) => {
   );
 };
 
+// Message Actions Menu Component - Vertical dots, hover visible, menu opens below
+const MessageActionsMenu = ({
+  msg,
+  isMe,
+  forcedOpen = false,
+  onReply,
+  onDelete,
+  onForward,
+  onReact,
+  onClose,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const menuRef = useRef(null);
+  const menuOpen = forcedOpen || isOpen;
+
+  const closeMenu = useCallback(() => {
+    setIsOpen(false);
+    setConfirmingDelete(false);
+    if (onClose) onClose();
+  }, [onClose]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        closeMenu();
+      }
+    };
+
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [menuOpen, closeMenu]);
+
+  const handleToggle = (e) => {
+    e.stopPropagation();
+    const nextOpen = !menuOpen;
+    setConfirmingDelete(false);
+    setIsOpen(nextOpen);
+
+    if (!nextOpen) {
+      closeMenu();
+    }
+  };
+
+  const handleAction = (callback, e) => {
+    e.stopPropagation();
+    callback();
+    closeMenu();
+  };
+
+  const stopMenuEvent = (event) => {
+    event.stopPropagation();
+  };
+
+  const handleDeleteRequest = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setConfirmingDelete(true);
+  };
+
+  const handleDeleteConfirm = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onDelete(msg._id);
+    closeMenu();
+  };
+  const canForward =
+    !msg.isPending &&
+    !msg.sendError &&
+    Boolean((msg.content || "").trim() || msg.attachments?.length);
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        display: "inline-flex",
+        alignItems: "center",
+      }}
+      ref={menuRef}
+    >
+      <button
+        onClick={handleToggle}
+        className={`message-action-trigger ${menuOpen ? "is-open" : ""}`}
+        style={{
+          width: "24px",
+          height: "24px",
+          borderRadius: "4px",
+          background: menuOpen ? "rgba(0,0,0,0.08)" : "transparent",
+          border: "none",
+          cursor: "pointer",
+          color: "var(--cc-muted)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          transition: "background 0.2s ease, color 0.2s ease, opacity 0.2s ease",
+          padding: 0,
+          opacity: menuOpen ? 1 : 0,
+        }}
+        onMouseEnter={(e) => {
+          if (!menuOpen) {
+            e.currentTarget.style.background = "var(--cc-surface-soft)";
+            e.currentTarget.style.color = "var(--cc-text)";
+            e.currentTarget.style.opacity = "1";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!menuOpen) {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = "var(--cc-muted)";
+            e.currentTarget.style.opacity = "0";
+          }
+        }}
+        aria-label="Message actions"
+      >
+        <FiMoreVertical size={18} />
+      </button>
+
+      {menuOpen && (
+        <div
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onMouseDown={stopMenuEvent}
+          onPointerDown={stopMenuEvent}
+          style={{
+            position: "absolute",
+            top: "calc(100% + 8px)",
+            [isMe ? "right" : "left"]: "0",
+            background: "var(--cc-surface-raised)",
+            border: "1px solid var(--cc-border)",
+            borderRadius: "12px",
+            boxShadow: "var(--cc-shadow)",
+            padding: "6px",
+            minWidth: "180px",
+            zIndex: 100,
+            animation: "cc-popover-in 160ms ease",
+          }}
+        >
+          <button
+            onClick={(e) => handleAction(() => onReply(msg), e)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              width: "100%",
+              padding: "8px 12px",
+              border: "none",
+              background: "transparent",
+              borderRadius: "8px",
+              cursor: "pointer",
+              color: "var(--cc-text)",
+              fontSize: "13px",
+              fontWeight: 500,
+              transition: "background 0.15s ease",
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = "var(--cc-surface-soft)"}
+            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+          >
+            <span style={{ fontSize: "16px" }}>↩</span>
+            Reply
+          </button>
+
+          {canForward && (
+            <button
+              onClick={(e) => handleAction(() => onForward(msg), e)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                width: "100%",
+                padding: "8px 12px",
+                border: "none",
+                background: "transparent",
+                borderRadius: "8px",
+                cursor: "pointer",
+                color: "var(--cc-text)",
+                fontSize: "13px",
+                fontWeight: 500,
+                transition: "background 0.15s ease",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "var(--cc-surface-soft)"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+              type="button"
+            >
+              <FiShare2 size={16} />
+              Forward
+            </button>
+          )}
+
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(6, 1fr)",
+            gap: "4px",
+            padding: "6px 8px",
+            borderTop: "1px solid var(--cc-border)",
+            marginTop: "4px",
+            paddingTop: "8px",
+          }}>
+            {["👍", "❤️", "😂", "🎉", "🔥", "👏"].map((emoji) => (
+              <button
+                key={emoji}
+                onClick={(e) => handleAction(() => onReact(msg._id, emoji), e)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  borderRadius: "6px",
+                  padding: "4px",
+                  fontSize: "20px",
+                  cursor: "pointer",
+                  transition: "background 0.15s ease, transform 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "var(--cc-surface-soft)";
+                  e.currentTarget.style.transform = "scale(1.15)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.transform = "scale(1)";
+                }}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+
+          {isMe && (
+            <div className="message-delete-area">
+              {confirmingDelete ? (
+                <div className="message-delete-confirm" role="group" aria-label="Confirm delete message">
+                  <span>Delete message?</span>
+                  <div>
+                    <button
+                      className="message-delete-cancel"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setConfirmingDelete(false);
+                      }}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="message-delete-confirm-button"
+                      onClick={handleDeleteConfirm}
+                      type="button"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  className="message-delete-action"
+                  onClick={handleDeleteRequest}
+                  type="button"
+                >
+                  <FiTrash2 size={16} />
+                  Delete
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const RTC_CONFIGURATION = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -117,6 +607,18 @@ const RTC_CONFIGURATION = {
   ],
 };
 
+const normalizeCallHistory = (items = []) => {
+  const seen = new Set();
+
+  return items
+    .filter((item) => {
+      if (!item?.id || seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    })
+    .slice(0, 30);
+};
+
 const ChatPage = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [room, setRoom] = useState(null);
@@ -127,15 +629,20 @@ const ChatPage = () => {
   const [chats, setChats] = useState([]);
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [sendingMessage, setSendingMessage] = useState(false);
   const [typing, setTyping] = useState(false);
   const [replyTo, setReplyTo] = useState(null);
   const [showUnread, setShowUnread] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState(() => new Set());
   const [attachments, setAttachments] = useState([]);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [attachmentError, setAttachmentError] = useState("");
   const [showChatActions, setShowChatActions] = useState(false);
-  const [reactionTarget, setReactionTarget] = useState(null);
-  const [reactionDraft, setReactionDraft] = useState("");
+  const [activeMobileActionMessageId, setActiveMobileActionMessageId] = useState(null);
+  const [forwardMessage, setForwardMessage] = useState(null);
+  const [forwardSearch, setForwardSearch] = useState("");
+  const [forwardSearchUsers, setForwardSearchUsers] = useState([]);
+  const [forwardTargets, setForwardTargets] = useState([]);
+  const [forwardingMessage, setForwardingMessage] = useState(false);
   const [activeTab, setActiveTab] = useState("chats");
   const [call, setCall] = useState(null);
   const [localStream, setLocalStream] = useState(null);
@@ -143,7 +650,9 @@ const ChatPage = () => {
   const [callHistory, setCallHistory] = useState(() => {
     const userId = JSON.parse(localStorage.getItem("userInfo") || "null")?.user?._id;
     if (!userId) return [];
-    return JSON.parse(localStorage.getItem(`cc:call-history:${userId}`) || "[]");
+    return normalizeCallHistory(
+      JSON.parse(localStorage.getItem(`cc:call-history:${userId}`) || "[]"),
+    );
   });
   const messagesEndRef = useRef(null);
   const messageRefs = useRef({});
@@ -152,21 +661,87 @@ const ChatPage = () => {
   const [searchUsers, setSearchUsers] = useState([]);
   const navigate = useNavigate();
 
-  // Get current user from localStorage
   const currentUser = JSON.parse(localStorage.getItem("userInfo"))?.user;
 
-  // ===== REF FOR PAGE TO PREVENT STALE CLOSURES =====
   const pageRef = useRef(1);
   const firstLoad = useRef(true);
   const hasNewMessageRef = useRef(false);
   const unreadAnchorRef = useRef(null);
   const openChatRequestRef = useRef(0);
   const attachmentInputRef = useRef(null);
+  const attachmentsRef = useRef([]);
+  const messagesRef = useRef([]);
+  const longPressTimerRef = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const peerRef = useRef(null);
   const pendingOfferRef = useRef(null);
   const pendingCandidatesRef = useRef([]);
+
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => () => {
+    window.clearTimeout(longPressTimerRef.current);
+    revokeAttachmentPreviews(attachmentsRef.current);
+    messagesRef.current.forEach((item) => {
+      revokeAttachmentPreviews(item.attachmentPreviews);
+    });
+  }, []);
+
+  const clearAttachmentDrafts = useCallback(() => {
+    setAttachments((current) => {
+      revokeAttachmentPreviews(current);
+      return [];
+    });
+    setAttachmentError("");
+  }, []);
+
+  const clearLongPressTimer = useCallback(() => {
+    window.clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+  }, []);
+
+  const openMobileActions = useCallback((messageId) => {
+    clearLongPressTimer();
+    setActiveMobileActionMessageId(messageId);
+  }, [clearLongPressTimer]);
+
+  const addAttachmentFiles = useCallback((fileList, { replace = false } = {}) => {
+    const incomingFiles = Array.from(fileList || []);
+
+    if (!incomingFiles.length) return false;
+
+    const validFiles = incomingFiles.filter(isSupportedChatAttachment);
+    const currentCount = replace ? 0 : attachmentsRef.current.length;
+    const availableSlots = Math.max(0, MAX_CHAT_ATTACHMENTS - currentCount);
+    const selectedFiles = validFiles.slice(0, availableSlots);
+    const selectedDrafts = selectedFiles.map(createAttachmentDraft);
+
+    setAttachments((current) => {
+      if (replace) {
+        revokeAttachmentPreviews(current);
+        return selectedDrafts;
+      }
+
+      return [...current, ...selectedDrafts];
+    });
+
+    if (incomingFiles.length !== selectedFiles.length) {
+      setAttachmentError(
+        `Only ${MAX_CHAT_ATTACHMENTS} images, GIFs, stickers, or videos up to 30 MB each can be sent.`,
+      );
+    } else {
+      setAttachmentError("");
+    }
+
+    return selectedFiles.length > 0;
+  }, []);
 
   const refreshChats = useCallback(async ({ silent = false } = {}) => {
     const cached = !silent ? getCachedMyChats() : null;
@@ -253,7 +828,6 @@ const ChatPage = () => {
     };
   }, []);
 
-  // ===== MESSAGE STATUS LISTENER =====
   useEffect(() => {
     const updateStatus = ({ messageId, status }) => {
       setMessages((prev) =>
@@ -274,23 +848,12 @@ const ChatPage = () => {
       socket.off("message_status", updateStatus);
     };
   }, []);
-  // ===== END MESSAGE STATUS LISTENER =====
 
   useEffect(() => {
     const applyDeletedMessage = ({ messageId, roomId }) => {
       if (String(roomId) !== String(room?._id)) return;
       setMessages((current) =>
-        current.map((item) =>
-          item._id === messageId
-            ? {
-                ...item,
-                isDeleted: true,
-                content: "This message was deleted.",
-                attachments: [],
-                reactions: [],
-              }
-            : item,
-        ),
+        current.filter((item) => String(item._id) !== String(messageId)),
       );
     };
     const applyReactions = ({ messageId, reactions }) => {
@@ -307,20 +870,18 @@ const ChatPage = () => {
     };
   }, [room?._id]);
 
-  // ===== REAL-TIME MESSAGE LISTENER =====
   useEffect(() => {
     const receive = (msg) => {
+      if (msg?.isDeleted) return;
+
       clearChatCache(msg.chatRoomId);
 
-      // Refresh chats from backend instead of local math
       setTimeout(() => {
         refreshChats({ silent: true });
         notifyChatCounters();
       }, 150);
 
-      // Only add to messages if it's the current room
       if (String(msg.chatRoomId) === String(room?._id)) {
-        // ===== CHECK IF USER IS NEAR BOTTOM =====
         const container = messagesContainerRef.current;
 
         if (container) {
@@ -336,11 +897,7 @@ const ChatPage = () => {
           }
         }
 
-        setMessages((prev) => {
-          const exists = prev.some((m) => m._id === msg._id);
-          if (exists) return prev;
-          return [...prev, msg];
-        });
+        setMessages((prev) => mergeIncomingMessage(prev, msg));
 
         const senderId = msg.sender?._id || msg.sender;
         if (String(senderId) !== String(currentUser?._id)) {
@@ -366,9 +923,7 @@ const ChatPage = () => {
       socket.off("new_message", receive);
     };
   }, [room?._id, currentUser?._id, notifyChatCounters, refreshChats]);
-  // ===== END REAL-TIME MESSAGE LISTENER =====
 
-  // ===== TYPING INDICATOR LISTENER =====
   useEffect(() => {
     const handleTyping = ({ roomId, name }) => {
       if (String(roomId) !== String(room?._id)) {
@@ -389,9 +944,7 @@ const ChatPage = () => {
       socket.off("user_stop_typing", handleStopTyping);
     };
   }, [room?._id]);
-  // ===== END TYPING INDICATOR LISTENER =====
 
-  // ===== AUTO SCROLL BOTTOM =====
   useEffect(() => {
     if (!messages.length) {
       return;
@@ -430,6 +983,7 @@ const ChatPage = () => {
     setHasMore(true);
     setShowUnread(false);
     setMessage("");
+    clearAttachmentDrafts();
     setReplyTo(null);
     setTyping(false);
     setLoadingMessages(true);
@@ -450,13 +1004,12 @@ const ChatPage = () => {
 
       joinRoom(res.room._id);
 
-      // Reset pageRef
       pageRef.current = 1;
 
       const cachedHistory = getCachedMessages(res.room._id, 1);
 
       if (cachedHistory) {
-        setMessages(cachedHistory.messages ?? []);
+        setMessages(getVisibleMessages(cachedHistory.messages));
         setHasMore(cachedHistory.hasMore);
         setLoadingMessages(false);
         setShowUnread(false);
@@ -473,7 +1026,7 @@ const ChatPage = () => {
         return;
       }
 
-      setMessages(history.messages ?? []);
+      setMessages(getVisibleMessages(history.messages));
       setHasMore(history.hasMore);
 
       setShowUnread(false);
@@ -495,7 +1048,6 @@ const ChatPage = () => {
         setShowUnread(false);
       }
 
-      // ===== Disable firstLoad effect for initial open =====
       firstLoad.current = false;
     } catch (err) {
       console.log(err);
@@ -519,6 +1071,7 @@ const ChatPage = () => {
     setHasMore(true);
     setShowUnread(false);
     setMessage("");
+    clearAttachmentDrafts();
     setReplyTo(null);
     setTyping(false);
     firstLoad.current = true;
@@ -546,6 +1099,32 @@ const ChatPage = () => {
     return () => clearTimeout(timer);
   }, [search]);
 
+  useEffect(() => {
+    if (!forwardMessage) {
+      setForwardSearch("");
+      setForwardSearchUsers([]);
+      return undefined;
+    }
+
+    const query = forwardSearch.trim();
+
+    if (!query) {
+      setForwardSearchUsers([]);
+      return undefined;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const data = await searchUsersService(query, 1, 8);
+        setForwardSearchUsers(data.users || []);
+      } catch (err) {
+        console.log(err);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [forwardMessage, forwardSearch]);
+
   const scrollToMessage = (messageId) => {
     const messageElement = messageRefs.current[messageId];
     if (messageElement) {
@@ -561,9 +1140,7 @@ const ChatPage = () => {
       }, 2000);
     }
   };
-  // ===== END SCROLL TO MESSAGE =====
 
-  // ===== HANDLE REPLY CLICK =====
   const handleReplyClick = (msg) => {
     if (replyTo?._id === msg._id) {
       setReplyTo(null);
@@ -571,47 +1148,175 @@ const ChatPage = () => {
     }
     setReplyTo(msg);
   };
-  // ===== END HANDLE REPLY CLICK =====
 
-  // ===== HANDLE SEND =====
+  const closeForwardPanel = () => {
+    setForwardMessage(null);
+    setForwardSearch("");
+    setForwardSearchUsers([]);
+    setForwardTargets([]);
+  };
+
+  const handleForwardClick = (msg) => {
+    setActiveMobileActionMessageId(null);
+    setForwardTargets([]);
+    setForwardSearch("");
+    setForwardSearchUsers([]);
+    setForwardMessage(msg);
+  };
+
+  const getForwardTargetKey = (target) =>
+    String(target.user?._id || target._id || target.roomId || "");
+
+  const normalizeForwardTarget = (target) => ({
+    key: getForwardTargetKey(target),
+    roomId: target.roomId || null,
+    user: target.user || target,
+  });
+
+  const toggleForwardTarget = (target) => {
+    const nextTarget = normalizeForwardTarget(target);
+
+    if (!nextTarget.key) return;
+
+    setForwardTargets((current) => {
+      const exists = current.some((item) => item.key === nextTarget.key);
+
+      if (exists) {
+        return current.filter((item) => item.key !== nextTarget.key);
+      }
+
+      if (current.length >= MAX_FORWARD_TARGETS) {
+        return current;
+      }
+
+      return [...current, nextTarget];
+    });
+  };
+
   const handleSend = async () => {
-    if ((!message.trim() && attachments.length === 0) || !room || loadingMessages) return;
+    const text = message.trim();
+    const draftAttachments = attachments;
+    const hasAttachments = draftAttachments.length > 0;
+
+    if ((!text && !hasAttachments) || !room || loadingMessages || sendingMessage) return;
+
+    const tempId = `pending-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const localPreviews = draftAttachments.map((item) => ({
+      id: item.id,
+      name: item.name,
+      size: item.size,
+      type: item.type,
+      url: item.previewUrl,
+      isLocal: true,
+    }));
+
+    const optimisticMessage = {
+      _id: tempId,
+      chatRoomId: room._id,
+      sender: currentUser,
+      content: text,
+      attachments: [],
+      attachmentPreviews: localPreviews,
+      replyTo,
+      reactions: [],
+      createdAt: new Date().toISOString(),
+      status: "sending",
+      isPending: true,
+      uploadProgress: hasAttachments ? 1 : null,
+    };
+
+    setSendingMessage(true);
+    setAttachmentError("");
+    setMessages((prev) => [...prev, optimisticMessage]);
+    setMessage("");
+    setReplyTo(null);
+    setAttachments([]);
+
+    requestAnimationFrame(scrollMessagesToBottom);
 
     try {
-      await sendMessage({
-        roomId: room._id,
-        content: message,
-        replyTo: replyTo?._id,
-        attachments,
-      });
+      const response = await sendMessage(
+        {
+          roomId: room._id,
+          content: text,
+          replyTo: replyTo?._id,
+          attachments: draftAttachments.map((item) => item.file),
+        },
+        {
+          onUploadProgress: (event) => {
+            if (!hasAttachments) return;
 
-      setMessage("");
-      setReplyTo(null);
-      setAttachments([]);
-      setShowEmojiPicker(false);
+            const progress = event.total
+              ? Math.min(99, Math.max(1, Math.round((event.loaded * 100) / event.total)))
+              : null;
 
-      // Stop typing indicator
+            setMessages((prev) =>
+              prev.map((item) =>
+                item._id === tempId
+                  ? {
+                      ...item,
+                      uploadProgress: progress,
+                    }
+                  : item,
+              ),
+            );
+          },
+        },
+      );
+
+      const sentMessage = response?.message || response;
+
+      if (sentMessage?._id) {
+        setMessages((prev) => mergeIncomingMessage(prev, sentMessage, tempId));
+      }
+
       socket.emit("stop_typing", room._id);
     } catch (err) {
       console.log(err);
+      setMessages((prev) =>
+        prev.map((item) =>
+          item._id === tempId
+            ? {
+                ...item,
+                isPending: false,
+                sendError: true,
+                status: "failed",
+                uploadProgress: null,
+              }
+            : item,
+        ),
+      );
+      setAttachmentError("Message upload failed. Please try again.");
+    } finally {
+      setSendingMessage(false);
     }
   };
-  // ===== END HANDLE SEND =====
 
   const handleAttachmentChange = (event) => {
-    const files = Array.from(event.target.files || []);
-    const validFiles = files.filter(
-      (file) =>
-        (file.type.startsWith("image/") || file.type.startsWith("video/")) &&
-        file.size <= 30 * 1024 * 1024,
-    );
-    setAttachments(validFiles);
+    addAttachmentFiles(event.target.files, { replace: true });
     event.target.value = "";
   };
 
+  const handleMessagePaste = (event) => {
+    if (composerDisabled) return;
+
+    const pastedFiles = Array.from(event.clipboardData?.files || []);
+    const pastedItemFiles = Array.from(event.clipboardData?.items || [])
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter(Boolean);
+    const files = pastedFiles.length ? pastedFiles : pastedItemFiles;
+
+    if (files.some(isSupportedChatAttachment)) {
+      event.preventDefault();
+      addAttachmentFiles(files);
+    }
+  };
+
   const handleMessageDelete = async (messageId) => {
-    if (!window.confirm("Delete this message for everyone?")) return;
     try {
+      setMessages((current) => current.filter((item) => item._id !== messageId));
+      setActiveMobileActionMessageId(null);
       await deleteMessage(messageId);
     } catch (error) {
       console.log(error);
@@ -626,11 +1331,61 @@ const ChatPage = () => {
     }
   };
 
-  const submitCustomReaction = async () => {
-    if (!reactionTarget || !reactionDraft.trim()) return;
-    await handleMessageReaction(reactionTarget, reactionDraft.trim());
-    setReactionTarget(null);
-    setReactionDraft("");
+  const handleForwardSend = async () => {
+    if (!forwardMessage || forwardingMessage || !forwardTargets.length) return;
+
+    const text = forwardMessage.content || "";
+    const forwardedAttachments = (forwardMessage.attachments || []).filter(Boolean);
+
+    if (!text.trim() && !forwardedAttachments.length) return;
+
+    try {
+      setForwardingMessage(true);
+
+      for (const target of forwardTargets.slice(0, MAX_FORWARD_TARGETS)) {
+        let targetRoomId = target.roomId;
+
+        if (!targetRoomId && target.user?._id) {
+          const opened = await openChat(target.user._id);
+          targetRoomId = opened.room?._id;
+        }
+
+        if (!targetRoomId) continue;
+
+        const response = await sendMessage({
+          roomId: targetRoomId,
+          content: text,
+          attachments: forwardedAttachments,
+        });
+        const forwarded = response?.message || response;
+
+        if (String(targetRoomId) === String(room?._id) && forwarded?._id) {
+          setMessages((prev) => mergeIncomingMessage(prev, forwarded));
+        }
+      }
+
+      closeForwardPanel();
+      await refreshChats({ silent: true });
+      notifyChatCounters();
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setForwardingMessage(false);
+    }
+  };
+
+  const handleMessagePointerDown = (event, messageId) => {
+    if (event.pointerType !== "touch") return;
+
+    clearLongPressTimer();
+    longPressTimerRef.current = window.setTimeout(() => {
+      openMobileActions(messageId);
+    }, 480);
+  };
+
+  const handleMessageContextMenu = (event, messageId) => {
+    event.preventDefault();
+    openMobileActions(messageId);
   };
 
   const formatTime = (timestamp) => {
@@ -638,10 +1393,23 @@ const ChatPage = () => {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  // Function to render message status
   const renderStatus = (msg) => {
     const senderId = msg.sender?._id || msg.sender;
     if (String(senderId) !== String(currentUser?._id)) return null;
+
+    if (msg.sendError) {
+      return <span className="chat-message-failed">Failed</span>;
+    }
+
+    if (msg.isPending) {
+      return (
+        <span className="chat-message-sending">
+          {typeof msg.uploadProgress === "number"
+            ? `${msg.uploadProgress}%`
+            : "Sending"}
+        </span>
+      );
+    }
 
     if (msg.status === "seen") {
       return (
@@ -667,7 +1435,10 @@ const ChatPage = () => {
     (entry) => {
       if (!currentUser?._id) return;
       setCallHistory((current) => {
-        const next = [entry, ...current].slice(0, 30);
+        const next = normalizeCallHistory([
+          entry,
+          ...current.filter((item) => item.id !== entry.id),
+        ]);
         localStorage.setItem(`cc:call-history:${currentUser._id}`, JSON.stringify(next));
         return next;
       });
@@ -905,6 +1676,41 @@ const ChatPage = () => {
     };
   }, [room?._id]);
 
+  const composerDisabled = loadingMessages || sendingMessage || !room;
+  const canSendMessage =
+    Boolean(message.trim() || attachments.length > 0) &&
+    Boolean(room) &&
+    !loadingMessages &&
+    !sendingMessage;
+  const forwardQuery = forwardSearch.trim().toLowerCase();
+  const forwardChatTargets = forwardMessage
+    ? chats
+        .filter((chat) => chat.user?._id)
+        .filter((chat) =>
+          forwardQuery
+            ? chat.user.name?.toLowerCase().includes(forwardQuery)
+            : true,
+        )
+        .slice(0, 8)
+    : [];
+  const forwardSearchTargets = forwardMessage
+    ? forwardSearchUsers
+        .filter((user) => String(user._id) !== String(currentUser?._id))
+        .filter(
+          (user) =>
+            !forwardChatTargets.some(
+              (chat) => String(chat.user?._id) === String(user._id),
+            ),
+        )
+    : [];
+  const selectedForwardKeys = new Set(forwardTargets.map((target) => target.key));
+  const visibleForwardTargetsCount =
+    forwardChatTargets.length + forwardSearchTargets.length;
+  const forwardPreviewText =
+    forwardMessage?.content?.trim() ||
+    (forwardMessage?.attachments?.length ? "Photo or video message" : "Message");
+
+  // ===== RENDER =====
   return (
     <div
       className={`chat-page ${selectedUser || call ? "has-active-chat" : "is-chat-list"}`}
@@ -913,8 +1719,7 @@ const ChatPage = () => {
         height: "calc(100vh - 70px)",
         width: "100%",
         background: "var(--cc-bg)",
-        fontFamily:
-          "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
         overflow: "hidden",
       }}
     >
@@ -964,6 +1769,25 @@ const ChatPage = () => {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search chats"
+                style={{
+                  width: "100%",
+                  height: "42px",
+                  padding: "0 13px",
+                  border: "1px solid var(--cc-border)",
+                  borderRadius: "var(--cc-radius)",
+                  background: "var(--cc-surface)",
+                  color: "var(--cc-text)",
+                  boxShadow: "0 4px 14px rgba(21, 35, 45, 0.045)",
+                  outline: "none",
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = "var(--cc-primary)";
+                  e.target.style.boxShadow = "0 0 0 3px rgba(15, 118, 110, 0.13)";
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = "var(--cc-border)";
+                  e.target.style.boxShadow = "0 4px 14px rgba(21, 35, 45, 0.045)";
+                }}
               />
             </div>
           )}
@@ -980,23 +1804,46 @@ const ChatPage = () => {
           {activeTab === "calls" ? (
             callHistory.length > 0 ? (
               callHistory.map((entry) => (
-                <div className="chat-list-item call-history-item" key={entry.id}>
+                <div className="chat-list-item call-history-item" key={entry.id} style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "12px",
+                }}>
                   <Avatar user={entry.peer} size={44} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="chat-user-name">{entry.peer?.name || "Campus member"}</div>
-                    <div className="chat-last-message">
+                    <div className="chat-user-name" style={{ fontWeight: 600 }}>{entry.peer?.name || "Campus member"}</div>
+                    <div className="chat-last-message" style={{ fontSize: "13px", color: "var(--cc-muted)" }}>
                       {entry.status === "missed" ? "Missed" : entry.direction === "incoming" ? "Incoming" : "Outgoing"} {entry.mode === "video" ? "video" : "voice"} call
                     </div>
+                    <div className="chat-list-time">
+                      {formatTime(entry.createdAt)}
+                    </div>
                   </div>
-                  <span className={`call-history-status is-${entry.status}`}>
+                  <span className={`call-history-status is-${entry.status}`} style={{
+                    display: "inline-grid",
+                    width: "32px",
+                    height: "32px",
+                    placeItems: "center",
+                    borderRadius: "50%",
+                    background: entry.status === "missed" ? "var(--cc-danger-soft)" : "var(--cc-primary-soft)",
+                    color: entry.status === "missed" ? "var(--cc-danger)" : "var(--cc-primary)",
+                  }}>
                     {entry.mode === "video" ? <FiVideo /> : <FiPhone />}
                   </span>
                 </div>
               ))
             ) : (
-              <div className="chat-empty-small call-empty">
-                <FiPhone />
-                <strong>No calls yet</strong>
+              <div className="chat-empty-small call-empty" style={{
+                display: "grid",
+                justifyItems: "center",
+                gap: "7px",
+                padding: "32px 18px",
+                textAlign: "center",
+                color: "var(--cc-muted)",
+              }}>
+                <FiPhone style={{ fontSize: "30px", color: "var(--cc-primary)" }} />
+                <strong style={{ color: "var(--cc-text)" }}>No calls yet</strong>
                 <span>Open a chat to start a voice or video call.</span>
               </div>
             )
@@ -1022,14 +1869,9 @@ const ChatPage = () => {
                 >
                   <Avatar user={user} size={48} />
                   <div>
-                    <div>{user.name}</div>
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        color: "var(--cc-muted)",
-                      }}
-                    >
-                      Start new chat
+                    <div style={{ fontWeight: 600 }}>{user.name}</div>
+                    <div style={{ fontSize: "12px", color: "var(--cc-muted)" }}>
+                      Tap to chat
                     </div>
                   </div>
                 </div>
@@ -1040,19 +1882,48 @@ const ChatPage = () => {
                 style={{
                   padding: "20px",
                   color: "var(--cc-muted)",
+                  textAlign: "center",
                 }}
               >
                 No users found
               </div>
             )
           ) : loadingChats ? (
-            <div className="chat-skeleton-list" aria-label="Loading chats">
+            <div className="chat-skeleton-list" aria-label="Loading chats" style={{ padding: "4px 0" }}>
               {[1, 2, 3, 4, 5].map((item) => (
-                <div className="chat-skeleton-row" key={item}>
-                  <span className="chat-skeleton-avatar" />
-                  <span className="chat-skeleton-lines">
-                    <span className="chat-skeleton-line is-title" />
-                    <span className="chat-skeleton-line" />
+                <div className="chat-skeleton-row" key={item} style={{
+                  display: "grid",
+                  gridTemplateColumns: "48px minmax(0, 1fr)",
+                  gap: "12px",
+                  alignItems: "center",
+                  padding: "12px",
+                  borderRadius: "var(--cc-radius)",
+                }}>
+                  <span className="chat-skeleton-avatar" style={{
+                    width: "48px",
+                    height: "48px",
+                    borderRadius: "50%",
+                    background: "linear-gradient(90deg, var(--cc-surface-soft) 0%, var(--cc-surface) 50%, var(--cc-surface-soft) 100%)",
+                    backgroundSize: "220% 100%",
+                    animation: "cc-shimmer 1.2s infinite",
+                  }} />
+                  <span className="chat-skeleton-lines" style={{ display: "grid", gap: "9px" }}>
+                    <span className="chat-skeleton-line is-title" style={{
+                      width: "52%",
+                      height: "13px",
+                      borderRadius: "999px",
+                      background: "linear-gradient(90deg, var(--cc-surface-soft) 0%, var(--cc-surface) 50%, var(--cc-surface-soft) 100%)",
+                      backgroundSize: "220% 100%",
+                      animation: "cc-shimmer 1.2s infinite",
+                    }} />
+                    <span className="chat-skeleton-line" style={{
+                      width: "74%",
+                      height: "10px",
+                      borderRadius: "999px",
+                      background: "linear-gradient(90deg, var(--cc-surface-soft) 0%, var(--cc-surface) 50%, var(--cc-surface-soft) 100%)",
+                      backgroundSize: "220% 100%",
+                      animation: "cc-shimmer 1.2s infinite",
+                    }} />
                   </span>
                 </div>
               ))}
@@ -1063,6 +1934,7 @@ const ChatPage = () => {
               style={{
                 padding: "20px",
                 color: "var(--cc-muted)",
+                textAlign: "center",
               }}
             >
               No chats yet. Search someone to start a conversation.
@@ -1070,11 +1942,7 @@ const ChatPage = () => {
           ) : (
             chats.map((chat) => (
               <div
-                className={`chat-list-item ${
-                  String(selectedUser?._id) === String(chat.user?._id)
-                    ? "is-active"
-                    : ""
-                }`}
+                className={`chat-list-item ${String(selectedUser?._id) === String(chat.user?._id) ? "is-active" : ""}`}
                 key={chat.roomId}
                 onClick={() => handleOpenChat(chat.user)}
                 style={{
@@ -1082,6 +1950,9 @@ const ChatPage = () => {
                   gap: "12px",
                   padding: "14px",
                   cursor: "pointer",
+                  borderRadius: "var(--cc-radius)",
+                  border: String(selectedUser?._id) === String(chat.user?._id) ? "1px solid rgba(15, 118, 110, 0.16)" : "1px solid transparent",
+                  background: String(selectedUser?._id) === String(chat.user?._id) ? "var(--cc-primary-soft)" : "transparent",
                 }}
               >
                 <Avatar
@@ -1168,14 +2039,36 @@ const ChatPage = () => {
         }}
       >
         {call && (
-          <section className={`chat-call-stage ${call.mode === "video" ? "is-video" : "is-audio"}`}>
-            <div className="call-stage-main">
+          <section className={`chat-call-stage ${call.mode === "video" ? "is-video" : "is-audio"}`} style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 30,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            padding: "28px",
+            overflow: "hidden",
+            background: "var(--cc-surface-raised)",
+            color: "var(--cc-text)",
+          }}>
+            <div className="call-stage-main" style={{
+              position: "relative",
+              display: "grid",
+              flex: 1,
+              minHeight: 0,
+              placeItems: "center",
+              border: "1px solid var(--cc-border)",
+              borderRadius: "var(--cc-radius)",
+              background: "var(--cc-surface-soft)",
+              overflow: "hidden",
+            }}>
               {call.mode === "video" ? (
                 <video
                   autoPlay
                   className="call-remote-video"
                   playsInline
                   ref={remoteVideoRef}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
                 />
               ) : (
                 <>
@@ -1190,11 +2083,39 @@ const ChatPage = () => {
                   muted
                   playsInline
                   ref={localVideoRef}
+                  style={{
+                    position: "absolute",
+                    right: "18px",
+                    bottom: "18px",
+                    width: "clamp(120px, 20vw, 220px)",
+                    aspectRatio: "4/3",
+                    border: "2px solid var(--cc-surface-raised)",
+                    borderRadius: "10px",
+                    background: "var(--cc-surface-soft)",
+                    boxShadow: "var(--cc-shadow)",
+                    objectFit: "cover",
+                  }}
                 />
               )}
-              <div className="call-stage-copy">
-                <strong>{call.peer?.name || "Campus member"}</strong>
-                <span>
+              <div className="call-stage-copy" style={{
+                position: "absolute",
+                left: "50%",
+                bottom: "24px",
+                display: "grid",
+                gap: "3px",
+                maxWidth: "calc(100% - 48px)",
+                padding: "10px 15px",
+                border: "1px solid var(--cc-border)",
+                borderRadius: "10px",
+                background: "var(--cc-surface-raised)",
+                boxShadow: "var(--cc-shadow-soft)",
+                textAlign: "center",
+                transform: "translateX(-50%)",
+              }}>
+                <strong style={{ overflow: "hidden", color: "var(--cc-text)", fontSize: "15px", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {call.peer?.name || "Campus member"}
+                </strong>
+                <span style={{ color: "var(--cc-muted)", fontSize: "12px" }}>
                   {call.status === "incoming"
                     ? `Incoming ${call.mode === "video" ? "video" : "voice"} call`
                     : call.status === "calling"
@@ -1207,23 +2128,79 @@ const ChatPage = () => {
             </div>
 
             {call.status === "incoming" ? (
-              <div className="call-stage-controls">
-                <button className="call-control is-decline" onClick={declineCall} type="button">
+              <div className="call-stage-controls" style={{
+                display: "flex",
+                justifyContent: "center",
+                gap: "10px",
+                paddingTop: "18px",
+              }}>
+                <button className="call-control is-decline" onClick={declineCall} type="button" style={{
+                  display: "inline-flex",
+                  minWidth: "44px",
+                  height: "44px",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "7px",
+                  padding: "0 14px",
+                  border: "1px solid transparent",
+                  borderRadius: "999px",
+                  background: "var(--cc-danger)",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                }}>
                   <FiPhoneOff />
                   Decline
                 </button>
-                <button className="call-control is-accept" onClick={acceptCall} type="button">
+                <button className="call-control is-accept" onClick={acceptCall} type="button" style={{
+                  display: "inline-flex",
+                  minWidth: "44px",
+                  height: "44px",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "7px",
+                  padding: "0 14px",
+                  border: "1px solid transparent",
+                  borderRadius: "999px",
+                  background: "var(--cc-primary)",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                }}>
                   {call.mode === "video" ? <FiVideo /> : <FiPhone />}
                   Accept
                 </button>
               </div>
             ) : (
-              <div className="call-stage-controls">
+              <div className="call-stage-controls" style={{
+                display: "flex",
+                justifyContent: "center",
+                gap: "10px",
+                paddingTop: "18px",
+              }}>
                 <button
                   aria-label={call.muted ? "Turn microphone on" : "Mute microphone"}
                   className={`call-control ${call.muted ? "is-muted" : ""}`}
                   onClick={toggleMicrophone}
                   type="button"
+                  style={{
+                    display: "inline-flex",
+                    minWidth: "44px",
+                    height: "44px",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "7px",
+                    padding: "0 14px",
+                    border: "1px solid var(--cc-border)",
+                    borderRadius: "999px",
+                    background: call.muted ? "var(--cc-warning-soft)" : "var(--cc-surface-soft)",
+                    color: call.muted ? "var(--cc-warning)" : "var(--cc-text)",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    fontWeight: 800,
+                  }}
                 >
                   {call.muted ? <FiMicOff /> : <FiMic />}
                 </button>
@@ -1233,11 +2210,42 @@ const ChatPage = () => {
                     className={`call-control ${call.cameraOff ? "is-muted" : ""}`}
                     onClick={toggleCamera}
                     type="button"
+                    style={{
+                      display: "inline-flex",
+                      minWidth: "44px",
+                      height: "44px",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "7px",
+                      padding: "0 14px",
+                      border: "1px solid var(--cc-border)",
+                      borderRadius: "999px",
+                      background: call.cameraOff ? "var(--cc-warning-soft)" : "var(--cc-surface-soft)",
+                      color: call.cameraOff ? "var(--cc-warning)" : "var(--cc-text)",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      fontWeight: 800,
+                    }}
                   >
                     {call.cameraOff ? <FiVideoOff /> : <FiVideo />}
                   </button>
                 )}
-                <button aria-label="End call" className="call-control is-end" onClick={endCall} type="button">
+                <button aria-label="End call" className="call-control is-end" onClick={endCall} type="button" style={{
+                  display: "inline-flex",
+                  minWidth: "44px",
+                  height: "44px",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "7px",
+                  padding: "0 14px",
+                  border: "1px solid transparent",
+                  borderRadius: "999px",
+                  background: "var(--cc-danger)",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                }}>
                   <FiPhoneOff />
                 </button>
               </div>
@@ -1267,6 +2275,21 @@ const ChatPage = () => {
                 className="chat-mobile-back"
                 onClick={handleBackToChats}
                 type="button"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  minHeight: "38px",
+                  padding: "8px 10px",
+                  border: "1px solid var(--cc-border)",
+                  borderRadius: "var(--cc-radius)",
+                  background: "var(--cc-surface-soft)",
+                  color: "var(--cc-text)",
+                  fontSize: "13px",
+                  fontWeight: 850,
+                  cursor: "pointer",
+                }}
               >
                 <FiArrowLeft />
                 <span>Chats</span>
@@ -1279,9 +2302,7 @@ const ChatPage = () => {
               />
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div
-                  onClick={() =>
-                    navigate(`/dashboard/user/${selectedUser._id}`)
-                  }
+                  onClick={() => navigate(`/dashboard/user/${selectedUser._id}`)}
                   style={{
                     fontWeight: 600,
                     cursor: "pointer",
@@ -1301,7 +2322,10 @@ const ChatPage = () => {
                     : "Offline"}
                 </div>
               </div>
-              <div className="chat-call-actions">
+              <div className="chat-call-actions" style={{
+                display: "inline-flex",
+                gap: "7px",
+              }}>
                 <button
                   aria-label={`Start voice call with ${selectedUser.name}`}
                   className="chat-tool-button"
@@ -1309,6 +2333,18 @@ const ChatPage = () => {
                   onClick={() => startCall("audio")}
                   title="Voice call"
                   type="button"
+                  style={{
+                    display: "inline-grid",
+                    width: "34px",
+                    height: "34px",
+                    placeItems: "center",
+                    border: "1px solid var(--cc-border)",
+                    borderRadius: "50%",
+                    background: "var(--cc-surface-soft)",
+                    color: "var(--cc-muted-strong)",
+                    cursor: "pointer",
+                    transition: "background 160ms ease, color 160ms ease, border-color 160ms ease",
+                  }}
                 >
                   <FiPhone />
                 </button>
@@ -1319,18 +2355,46 @@ const ChatPage = () => {
                   onClick={() => startCall("video")}
                   title="Video call"
                   type="button"
+                  style={{
+                    display: "inline-grid",
+                    width: "34px",
+                    height: "34px",
+                    placeItems: "center",
+                    border: "1px solid var(--cc-border)",
+                    borderRadius: "50%",
+                    background: "var(--cc-surface-soft)",
+                    color: "var(--cc-muted-strong)",
+                    cursor: "pointer",
+                    transition: "background 160ms ease, color 160ms ease, border-color 160ms ease",
+                  }}
                 >
                   <FiVideo />
                 </button>
               </div>
-              <div className="chat-header-actions">
+              <div className="chat-header-actions" style={{
+                position: "relative",
+                display: "inline-flex",
+                alignItems: "center",
+              }}>
                 <button
                   aria-label="Chat options"
                   className="chat-tool-button"
                   onClick={() => setShowChatActions((open) => !open)}
                   type="button"
+                  style={{
+                    display: "inline-grid",
+                    width: "34px",
+                    height: "34px",
+                    placeItems: "center",
+                    border: "1px solid var(--cc-border)",
+                    borderRadius: "50%",
+                    background: "var(--cc-surface-soft)",
+                    color: "var(--cc-muted-strong)",
+                    cursor: "pointer",
+                    transition: "background 160ms ease, color 160ms ease, border-color 160ms ease",
+                  }}
                 >
-                  <FiMoreHorizontal />
+                  <FiMoreVertical />
                 </button>
                 {showChatActions && (
                   <button
@@ -1339,10 +2403,30 @@ const ChatPage = () => {
                       if (!room || !window.confirm("Clear this chat from your view?")) return;
                       await clearChatForMe(room._id);
                       setMessages([]);
+                      setChats((current) =>
+                        current.filter((chat) => String(chat.roomId) !== String(room._id)),
+                      );
                       setShowChatActions(false);
+                      refreshChats({ silent: true });
                       notifyChatCounters();
                     }}
                     type="button"
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 8px)",
+                      right: 0,
+                      zIndex: 12,
+                      width: "max-content",
+                      padding: "9px 12px",
+                      border: "1px solid var(--cc-border)",
+                      borderRadius: "8px",
+                      background: "var(--cc-surface-raised)",
+                      color: "var(--cc-danger)",
+                      boxShadow: "var(--cc-shadow)",
+                      cursor: "pointer",
+                      fontSize: "13px",
+                      fontWeight: 750,
+                    }}
                   >
                     Clear chat
                   </button>
@@ -1362,13 +2446,11 @@ const ChatPage = () => {
                     container.clientHeight <
                   180;
 
-                // ===== HIDE UNREAD WHEN SCROLLING TO BOTTOM =====
                 if (nearBottom && hasNewMessageRef.current) {
                   hasNewMessageRef.current = false;
                   setShowUnread(false);
                 }
 
-                // Load older messages when scrolled to top
                 if (
                   e.currentTarget.scrollTop > 50 ||
                   loadingOld ||
@@ -1380,34 +2462,23 @@ const ChatPage = () => {
 
                 try {
                   setLoadingOld(true);
-
-                  // Save current scroll height before prepending
                   const oldHeight = e.currentTarget.scrollHeight;
-
-                  // Use pageRef to prevent stale page values
                   const next = pageRef.current + 1;
                   const res = await getMessages(room._id, next);
 
                   if (res.messages?.length) {
-                    // Deduplicate messages to prevent duplicates
                     setMessages((prev) => {
                       const ids = new Set(prev.map((m) => m._id));
                       return [
-                        ...res.messages.filter((m) => !ids.has(m._id)),
+                        ...getVisibleMessages(res.messages).filter((m) => !ids.has(m._id)),
                         ...prev,
                       ];
                     });
-
-                    // Only update pageRef if messages were returned
                     pageRef.current = next;
-
-                    // Preserve scroll position after messages are added
                     requestAnimationFrame(() => {
                       if (messagesContainerRef.current) {
-                        const newHeight =
-                          messagesContainerRef.current.scrollHeight;
-                        messagesContainerRef.current.scrollTop =
-                          newHeight - oldHeight;
+                        const newHeight = messagesContainerRef.current.scrollHeight;
+                        messagesContainerRef.current.scrollTop = newHeight - oldHeight;
                       }
                     });
                   }
@@ -1444,10 +2515,25 @@ const ChatPage = () => {
               )}
 
               {loadingMessages ? (
-                <div className="chat-loading-state">
-                  <span className="chat-spinner" />
-                  <strong>Loading conversation</strong>
-                  <small>Getting the latest messages...</small>
+                <div className="chat-loading-state" style={{
+                  display: "grid",
+                  justifyItems: "center",
+                  gap: "8px",
+                  margin: "auto",
+                  padding: "28px",
+                  color: "var(--cc-muted)",
+                  textAlign: "center",
+                }}>
+                  <span className="chat-spinner" style={{
+                    width: "34px",
+                    height: "34px",
+                    border: "3px solid var(--cc-border)",
+                    borderTopColor: "var(--cc-primary)",
+                    borderRadius: "999px",
+                    animation: "cc-spin 700ms linear infinite",
+                  }} />
+                  <strong style={{ color: "var(--cc-text)", fontSize: "15px" }}>Loading conversation</strong>
+                  <small style={{ color: "var(--cc-muted)" }}>Getting the latest messages...</small>
                 </div>
               ) : messages.length === 0 ? (
                 <div
@@ -1464,7 +2550,6 @@ const ChatPage = () => {
               ) : (
                 <>
                   {(() => {
-                    // ===== UNREAD LOGIC =====
                     const currentChat = chats.find(
                       (c) => String(c.roomId) === String(room?._id),
                     );
@@ -1482,9 +2567,13 @@ const ChatPage = () => {
                       const senderId = msg.sender?._id || msg.sender;
                       const isMe =
                         String(senderId) === String(currentUser?._id);
-                      const isReplying = replyTo?._id === msg._id;
+                      const isMobileActionOpen =
+                        activeMobileActionMessageId === msg._id;
+                      const hasMedia = Boolean(
+                        msg.attachmentPreviews?.length || msg.attachments?.length,
+                      );
+                      const isMediaOnly = hasMedia && !msg.content?.trim();
 
-                      // DATE GROUPING
                       const currentDate = new Date(msg.createdAt);
                       const previousDate =
                         index > 0
@@ -1557,7 +2646,6 @@ const ChatPage = () => {
                                     background: "var(--cc-primary)",
                                   }}
                                 />
-
                                 <div
                                   style={{
                                     color: "var(--cc-primary)",
@@ -1567,7 +2655,6 @@ const ChatPage = () => {
                                 >
                                   UNREAD
                                 </div>
-
                                 <div
                                   style={{
                                     flex: 1,
@@ -1593,65 +2680,24 @@ const ChatPage = () => {
                             }}
                           >
                             <div
+                              className="chat-message-row-inner"
                               style={{
                                 display: "flex",
-                                flexDirection: isMe ? "row" : "row-reverse",
-                                alignItems: "center",
+                                flexDirection: isMe ? "row-reverse" : "row",
+                                alignItems: "flex-end",
                                 gap: "4px",
-                                maxWidth: "70%",
+                                maxWidth: "75%",
+                                position: "relative",
                               }}
                             >
-                              {/* Reply Icon - hidden by default, shows on hover over message bubble */}
+                              {/* Message Bubble */}
                               <div
-                                className="reply-icon"
-                                onClick={() => handleReplyClick(msg)}
-                                style={{
-                                  fontSize: "16px",
-                                  color: isReplying
-                                    ? "var(--cc-primary)"
-                                    : "var(--cc-muted)",
-                                  cursor: "pointer",
-                                  opacity: isReplying ? 1 : 0,
-                                  width: "26px",
-                                  transition: "opacity 0.2s ease",
-                                  flexShrink: 0,
-                                }}
-                              >
-                                ↩
-                              </div>
-
-                              {/* Message Bubble - hover events directly on bubble */}
-                              <div
-                                className={`chat-message-bubble ${
-                                  isMe ? "is-me" : "is-them"
-                                }`}
-                                onClick={() => {
-                                  if (isReplying) {
-                                    setReplyTo(null);
-                                  } else {
-                                    handleReplyClick(msg);
-                                  }
-                                }}
-                                onMouseEnter={(e) => {
-                                  // Show reply icon when hovering over message bubble
-                                  const replyIcon =
-                                    e.currentTarget.parentElement.querySelector(
-                                      ".reply-icon",
-                                    );
-                                  if (replyIcon && !isReplying) {
-                                    replyIcon.style.opacity = "1";
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  // Hide reply icon when not hovering, unless it's selected
-                                  const replyIcon =
-                                    e.currentTarget.parentElement.querySelector(
-                                      ".reply-icon",
-                                    );
-                                  if (replyIcon && !isReplying) {
-                                    replyIcon.style.opacity = "0";
-                                  }
-                                }}
+                                className={`chat-message-bubble ${isMe ? "is-me" : "is-them"} ${hasMedia ? "has-media" : ""} ${isMediaOnly ? "is-media-only" : ""}`}
+                                onContextMenu={(e) => handleMessageContextMenu(e, msg._id)}
+                                onPointerCancel={clearLongPressTimer}
+                                onPointerDown={(e) => handleMessagePointerDown(e, msg._id)}
+                                onPointerLeave={clearLongPressTimer}
+                                onPointerUp={clearLongPressTimer}
                                 style={{
                                   padding: "8px 14px",
                                   background: isMe
@@ -1670,132 +2716,58 @@ const ChatPage = () => {
                                     ? "1px solid transparent"
                                     : "1px solid var(--cc-border)",
                                   maxWidth: "100%",
-                                  cursor: "pointer",
+                                  position: "relative",
+                                  wordBreak: "break-word",
                                 }}
                               >
                                 {msg.replyTo && (
-                                  <div
+                                  <button
+                                    className="chat-reply-snippet"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       scrollToMessage(msg.replyTo._id);
                                     }}
-                                    style={{
-                                      fontSize: "12px",
-                                      marginBottom: "6px",
-                                      padding: "4px 10px",
-                                      borderLeft: "3px solid var(--cc-primary)",
-                                      background: isMe
-                                        ? "rgba(255,255,255,.14)"
-                                        : "var(--cc-surface-soft)",
-                                      borderRadius: "4px",
-                                      cursor: "pointer",
-                                    }}
+                                    type="button"
                                   >
-                                    {msg.replyTo?.content}
-                                  </div>
+                                    <ReplyPreview msg={msg.replyTo} />
+                                  </button>
                                 )}
 
                                 <div>{msg.content}</div>
 
-                                {msg.attachments?.length > 0 && (
-                                  <div className="chat-message-media">
-                                    {msg.attachments.map((attachment) =>
-                                      /\.(mp4|webm|mov)(?:\?|$)/i.test(attachment) ? (
-                                        <video controls key={attachment} preload="metadata" src={attachment} />
-                                      ) : (
-                                        <img alt="Message attachment" key={attachment} src={attachment} />
-                                      ),
-                                    )}
-                                  </div>
-                                )}
-
-                                {!msg.isDeleted && (
-                                  <div className="chat-message-actions">
-                                    {["👍", "❤️", "😂"].map((emoji) => (
-                                      <button
-                                        key={emoji}
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          handleMessageReaction(msg._id, emoji);
-                                        }}
-                                        type="button"
-                                      >
-                                        {emoji}
-                                      </button>
-                                    ))}
-                                    <button
-                                      aria-label="Choose any emoji reaction"
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        setReactionTarget(msg._id);
-                                        setReactionDraft("");
-                                      }}
-                                      type="button"
-                                    >
-                                      <FiSmile />
-                                    </button>
-                                    {isMe && (
-                                      <button
-                                        aria-label="Delete message"
-                                        className="is-delete"
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          handleMessageDelete(msg._id);
-                                        }}
-                                        type="button"
-                                      >
-                                        <FiTrash2 />
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
+                                <MessageMedia msg={msg} />
 
                                 {msg.reactions?.length > 0 && (
-                                  <div className="chat-message-reactions">
+                                  <div className="chat-message-reactions" style={{
+                                    display: "flex",
+                                    flexWrap: "wrap",
+                                    gap: "4px",
+                                    marginTop: "7px",
+                                  }}>
                                     {[...new Set(msg.reactions.map((reaction) => reaction.emoji))].map((emoji) => (
                                       <button
                                         key={emoji}
-                                        onClick={(event) => {
-                                          event.stopPropagation();
+                                        onClick={(e) => {
+                                          e.stopPropagation();
                                           handleMessageReaction(msg._id, emoji);
                                         }}
                                         type="button"
+                                        style={{
+                                          padding: "2px 8px",
+                                          border: "1px solid var(--cc-border)",
+                                          borderRadius: "999px",
+                                          background: "var(--cc-surface-raised)",
+                                          color: "var(--cc-text)",
+                                          fontSize: "12px",
+                                          cursor: "pointer",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "3px",
+                                        }}
                                       >
                                         {emoji} {msg.reactions.filter((reaction) => reaction.emoji === emoji).length}
                                       </button>
                                     ))}
-                                  </div>
-                                )}
-
-                                {reactionTarget === msg._id && (
-                                  <div
-                                    className="chat-custom-reaction"
-                                    onClick={(event) => event.stopPropagation()}
-                                  >
-                                    <input
-                                      autoFocus
-                                      inputMode="text"
-                                      maxLength="32"
-                                      onChange={(event) => setReactionDraft(event.target.value)}
-                                      onKeyDown={(event) => {
-                                        if (event.key === "Enter") {
-                                          event.preventDefault();
-                                          submitCustomReaction();
-                                        }
-                                      }}
-                                      placeholder="Add emoji"
-                                      value={reactionDraft}
-                                    />
-                                    <button onClick={submitCustomReaction} type="button">
-                                      Add
-                                    </button>
-                                    <button
-                                      aria-label="Close emoji reaction picker"
-                                      onClick={() => setReactionTarget(null)}
-                                      type="button"
-                                    >
-                                      <FiX />
-                                    </button>
                                   </div>
                                 )}
 
@@ -1806,11 +2778,55 @@ const ChatPage = () => {
                                     display: "flex",
                                     justifyContent: "flex-end",
                                     gap: "3px",
+                                    alignItems: "center",
                                   }}
                                 >
                                   {formatTime(msg.createdAt)}
                                   {isMe && <span>{renderStatus(msg)}</span>}
                                 </div>
+                              </div>
+
+                              {/* Vertical Dots Menu */}
+                              <div
+                                className={`message-actions-wrapper ${isMe ? "is-me" : "is-them"}`}
+                                style={{
+                                  flexShrink: 0,
+                                  display: "flex",
+                                  alignItems: "flex-end",
+                                  paddingBottom: "4px",
+                                  ...(isMobileActionOpen
+                                    ? {
+                                        position: "absolute",
+                                        left: "50%",
+                                        bottom: "calc(100% + 6px)",
+                                        zIndex: 20,
+                                        transform: "translateX(-50%)",
+                                      }
+                                    : {}),
+                                }}
+                                onMouseEnter={(e) => {
+                                  const btn = e.currentTarget.querySelector('button');
+                                  if (btn) {
+                                    btn.style.opacity = "1";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  const btn = e.currentTarget.querySelector('button');
+                                  if (btn && !btn.classList.contains('is-open')) {
+                                    btn.style.opacity = "0";
+                                  }
+                                }}
+                              >
+                                <MessageActionsMenu
+                                  msg={msg}
+                                  isMe={isMe}
+                                  forcedOpen={isMobileActionOpen}
+                                  onClose={() => setActiveMobileActionMessageId(null)}
+                                  onReply={handleReplyClick}
+                                  onDelete={handleMessageDelete}
+                                  onForward={handleForwardClick}
+                                  onReact={handleMessageReaction}
+                                />
                               </div>
                             </div>
                           </div>
@@ -1823,7 +2839,7 @@ const ChatPage = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Bottom Section */}
+            {/* Bottom Section - Composer */}
             <div
               className="chat-composer-shell"
               style={{
@@ -1834,7 +2850,6 @@ const ChatPage = () => {
                 borderTop: "1px solid var(--cc-border)",
               }}
             >
-              {/* Typing Indicator */}
               {typing && (
                 <div
                   className="chat-typing"
@@ -1851,63 +2866,23 @@ const ChatPage = () => {
                     background: "var(--cc-surface-raised)",
                   }}
                 >
-                  <span
-                    style={{
-                      display: "inline-block",
-                      animation: "pulse 1.4s ease-in-out infinite",
-                    }}
-                  >
-                    ●
-                  </span>
+                  <span style={{ display: "inline-block", animation: "pulse 1.4s ease-in-out infinite" }}>●</span>
                   <span>{typing} typing...</span>
                 </div>
               )}
 
-              {/* Reply Preview - Simple version (reverted) */}
               {replyTo && (
-                <div
-                  className="chat-reply-preview"
-                  style={{
-                    padding: "4px 24px",
-                    background: "var(--cc-primary-soft)",
-                    borderTop: "1px solid var(--cc-border)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    minHeight: "30px",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      color: "var(--cc-text)",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      flex: 1,
-                      minWidth: 0,
-                    }}
-                  >
-                    <span style={{ color: "var(--cc-primary)", fontSize: "14px" }}>
-                      ↩
-                    </span>
-                    <span
-                      style={{
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        color: "var(--cc-text)",
-                      }}
-                    >
-                      {replyTo.content}
-                    </span>
+                <div className="chat-reply-preview">
+                  <div className="chat-reply-preview-content">
+                    <span className="chat-reply-preview-icon">↩</span>
+                    <ReplyPreview msg={replyTo} prefix="Replying to" />
                   </div>
                   <button
                     onClick={() => setReplyTo(null)}
                     style={{
                       background: "none",
                       border: "none",
-                      fontSize: "16px",
+                      fontSize: "18px",
                       cursor: "pointer",
                       color: "var(--cc-muted)",
                       padding: "0 8px",
@@ -1928,23 +2903,64 @@ const ChatPage = () => {
                 </div>
               )}
 
-              {/* Message Input */}
-              {attachments.length > 0 && (
-                <div className="chat-attachment-preview">
-                  {attachments.map((file, index) => (
-                    <span key={`${file.name}-${index}`}>
-                      {file.type.startsWith("video/") ? "Video" : "Image"}: {file.name}
+              {(attachments.length > 0 || attachmentError) && (
+                <div className="chat-attachment-preview" style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                  padding: "10px 24px 0",
+                  background: "var(--cc-surface-raised)",
+                }}>
+                  {attachments.map((item, index) => (
+                    <span className="chat-attachment-chip" key={item.id}>
+                      <span className="chat-attachment-thumb">
+                        {item.type.startsWith("video/") ? (
+                          <video muted playsInline preload="metadata" src={item.previewUrl} />
+                        ) : (
+                          <img alt={item.name} src={item.previewUrl} />
+                        )}
+                      </span>
+                      <span className="chat-attachment-meta">
+                        <span>
+                          {item.type.startsWith("video/") ? <FiVideo /> : <FiImage />}
+                          {item.type.startsWith("video/") ? "Video" : "Image"}
+                        </span>
+                        <strong>{item.name}</strong>
+                        <small>{formatFileSize(item.size)}</small>
+                      </span>
                       <button
-                        aria-label={`Remove ${file.name}`}
-                        onClick={() => setAttachments((files) => files.filter((_, itemIndex) => itemIndex !== index))}
+                        aria-label={`Remove ${item.name}`}
+                        disabled={sendingMessage}
+                        onClick={() =>
+                          setAttachments((files) => {
+                            revokeAttachmentPreviews(files[index] ? [files[index]] : []);
+                            return files.filter((_, itemIndex) => itemIndex !== index);
+                          })
+                        }
                         type="button"
+                        style={{
+                          display: "inline-grid",
+                          width: "18px",
+                          height: "18px",
+                          flex: "0 0 auto",
+                          placeItems: "center",
+                          border: "none",
+                          borderRadius: "50%",
+                          background: "transparent",
+                          color: "var(--cc-muted)",
+                          cursor: "pointer",
+                        }}
                       >
                         <FiX />
                       </button>
                     </span>
                   ))}
+                  {attachmentError && (
+                    <p className="chat-attachment-error">{attachmentError}</p>
+                  )}
                 </div>
               )}
+
               <div
                 className="chat-input-row"
                 style={{
@@ -1967,25 +2983,37 @@ const ChatPage = () => {
                 <button
                   aria-label="Attach image or video"
                   className="chat-tool-button"
-                  disabled={loadingMessages || !room}
+                  disabled={composerDisabled}
                   onClick={() => attachmentInputRef.current?.click()}
                   type="button"
+                  style={{
+                    display: "inline-grid",
+                    width: "34px",
+                    height: "34px",
+                    placeItems: "center",
+                    border: "1px solid var(--cc-border)",
+                    borderRadius: "50%",
+                    background: "var(--cc-surface-soft)",
+                    color: "var(--cc-muted-strong)",
+                    cursor: composerDisabled ? "not-allowed" : "pointer",
+                    opacity: composerDisabled ? 0.55 : 1,
+                    transition: "background 160ms ease, color 160ms ease, border-color 160ms ease",
+                  }}
                 >
                   <FiPaperclip />
                 </button>
+
                 <input
                   className="chat-message-input"
                   value={message}
-                  disabled={loadingMessages || !room}
+                  disabled={composerDisabled}
                   onChange={(e) => {
                     setMessage(e.target.value);
-
                     if (room) {
-                     socket.emit("typing", {
-  roomId: room._id,
-  user: currentUser?.name,
-});
-
+                      socket.emit("typing", {
+                        roomId: room._id,
+                        user: currentUser?.name,
+                      });
                       clearTimeout(window.typing);
                       window.typing = setTimeout(() => {
                         socket.emit("stop_typing", room._id);
@@ -1998,13 +3026,8 @@ const ChatPage = () => {
                       handleSend();
                     }
                   }}
-                  placeholder={
-                    loadingMessages
-                      ? "Loading conversation..."
-                      : replyTo
-                        ? "Type your reply..."
-                        : "Type a message..."
-                  }
+                  onPaste={handleMessagePaste}
+                  placeholder={loadingMessages ? "Loading conversation..." : sendingMessage ? "Sending..." : replyTo ? "Type your reply..." : "Type a message..."}
                   style={{
                     flex: 1,
                     padding: "8px 16px",
@@ -2028,73 +3051,45 @@ const ChatPage = () => {
                     e.target.style.boxShadow = "none";
                   }}
                 />
-                <div className="chat-emoji-wrap">
-                  <button
-                    aria-label="Add emoji"
-                    className="chat-tool-button"
-                    disabled={loadingMessages || !room}
-                    onClick={() => setShowEmojiPicker((open) => !open)}
-                    type="button"
-                  >
-                    <FiSmile />
-                  </button>
-                  {showEmojiPicker && (
-                    <div className="chat-emoji-picker">
-                      {["😀", "👍", "❤️", "😂", "🎉", "🙏"].map((emoji) => (
-                        <button
-                          key={emoji}
-                          onClick={() => {
-                            setMessage((value) => `${value}${emoji}`);
-                            setShowEmojiPicker(false);
-                          }}
-                          type="button"
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+
                 <button
                   className="chat-send-button"
                   onClick={handleSend}
-                  disabled={(!message.trim() && attachments.length === 0) || loadingMessages || !room}
+                  disabled={!canSendMessage}
                   style={{
                     padding: "6px 18px",
-                    background:
-                      (message.trim() || attachments.length > 0) && !loadingMessages && room
-                        ? "var(--cc-primary)"
-                        : "var(--cc-primary-soft)",
+                    background: canSendMessage
+                      ? "var(--cc-primary)"
+                      : "var(--cc-primary-soft)",
                     color: "#ffffff",
                     border: "none",
                     borderRadius: "24px",
                     fontWeight: 600,
                     fontSize: "13px",
-                    cursor:
-                      (message.trim() || attachments.length > 0) && !loadingMessages && room
-                        ? "pointer"
-                        : "not-allowed",
+                    cursor: canSendMessage
+                      ? "pointer"
+                      : "not-allowed",
                     transition: "all 0.2s ease",
                     whiteSpace: "nowrap",
-                    boxShadow: (message.trim() || attachments.length > 0) && !loadingMessages && room
+                    boxShadow: canSendMessage
                       ? "0 10px 18px rgba(15,118,110,0.18)"
                       : "none",
                     flexShrink: 0,
                   }}
                   onMouseEnter={(e) => {
-                    if ((message.trim() || attachments.length > 0) && !loadingMessages && room) {
+                    if (canSendMessage) {
                       e.currentTarget.style.background = "var(--cc-primary-dark)";
                       e.currentTarget.style.transform = "scale(1.02)";
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if ((message.trim() || attachments.length > 0) && !loadingMessages && room) {
+                    if (canSendMessage) {
                       e.currentTarget.style.background = "var(--cc-primary)";
                       e.currentTarget.style.transform = "scale(1)";
                     }
                   }}
                 >
-                  Send
+                  {sendingMessage ? "Sending..." : "Send"}
                 </button>
               </div>
             </div>
@@ -2113,8 +3108,17 @@ const ChatPage = () => {
             <div
               className="chat-empty-icon"
               style={{
-                fontSize: "48px",
-                marginBottom: "16px",
+                width: "58px",
+                height: "58px",
+                display: "grid",
+                placeItems: "center",
+                margin: "0 auto 16px",
+                borderRadius: "18px",
+                background: "linear-gradient(135deg, var(--cc-primary), var(--cc-accent))",
+                color: "#ffffff",
+                fontSize: "18px",
+                fontWeight: 900,
+                boxShadow: "var(--cc-shadow-soft)",
               }}
             >
               CC
@@ -2139,6 +3143,123 @@ const ChatPage = () => {
           </div>
         )}
       </div>
+      {forwardMessage && (
+        <div
+          className="chat-forward-backdrop"
+          onClick={closeForwardPanel}
+          role="presentation"
+        >
+          <div
+            className="chat-forward-panel"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Forward message"
+          >
+            <div className="chat-forward-header">
+              <strong>Forward message</strong>
+              <button aria-label="Close forward panel" onClick={closeForwardPanel} type="button">
+                <FiX />
+              </button>
+            </div>
+            <div className="chat-forward-preview">
+              <span>{forwardPreviewText}</span>
+              {forwardMessage.attachments?.length > 0 && (
+                <small>{forwardMessage.attachments.length} media</small>
+              )}
+            </div>
+            <input
+              className="chat-forward-search"
+              value={forwardSearch}
+              onChange={(event) => setForwardSearch(event.target.value)}
+              placeholder="Search people"
+            />
+            <div className="chat-forward-count">
+              <span>{forwardTargets.length}/{MAX_FORWARD_TARGETS} selected</span>
+              <small>Select up to {MAX_FORWARD_TARGETS}</small>
+            </div>
+            {forwardTargets.length > 0 && (
+              <div className="chat-forward-selected">
+                {forwardTargets.map((target) => (
+                  <button
+                    key={target.key}
+                    onClick={() => toggleForwardTarget(target)}
+                    type="button"
+                  >
+                    {target.user?.name}
+                    <FiX size={13} />
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="chat-forward-list">
+              {forwardChatTargets.map((chat) => {
+                const targetKey = getForwardTargetKey(chat);
+                const isSelected = selectedForwardKeys.has(targetKey);
+                const isDisabled =
+                  forwardingMessage ||
+                  (!isSelected && forwardTargets.length >= MAX_FORWARD_TARGETS);
+
+                return (
+                  <button
+                    className={isSelected ? "is-selected" : ""}
+                    disabled={isDisabled}
+                    key={chat.roomId}
+                    onClick={() => toggleForwardTarget(chat)}
+                    type="button"
+                  >
+                    <Avatar user={chat.user} size={34} />
+                    <span>{chat.user?.name}</span>
+                    <small>{isSelected ? "Selected" : "Tap to select"}</small>
+                  </button>
+                );
+              })}
+              {forwardSearchTargets.map((user) => {
+                const targetKey = getForwardTargetKey(user);
+                const isSelected = selectedForwardKeys.has(targetKey);
+                const isDisabled =
+                  forwardingMessage ||
+                  (!isSelected && forwardTargets.length >= MAX_FORWARD_TARGETS);
+
+                return (
+                  <button
+                    className={isSelected ? "is-selected" : ""}
+                    disabled={isDisabled}
+                    key={user._id}
+                    onClick={() => toggleForwardTarget({ user })}
+                    type="button"
+                  >
+                    <Avatar user={user} size={34} />
+                    <span>{user.name}</span>
+                    <small>{isSelected ? "Selected" : "Tap to select"}</small>
+                  </button>
+                );
+              })}
+              {!visibleForwardTargetsCount && (
+                <p>No people found</p>
+              )}
+            </div>
+            <div className="chat-forward-footer">
+              <button
+                className="is-secondary"
+                disabled={forwardingMessage}
+                onClick={closeForwardPanel}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="is-primary"
+                disabled={forwardingMessage || forwardTargets.length === 0}
+                onClick={handleForwardSend}
+                type="button"
+              >
+                {forwardingMessage ? "Sending..." : `Send (${forwardTargets.length})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

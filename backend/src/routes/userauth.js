@@ -5,6 +5,9 @@ const {
   acceptAdminInvite,
   registerGlobalAdmin,
   registerUser,
+  requestOTP,
+  verifyOTP,
+  resendOTP,
   loginUser,
   socialLogin,
   logout,
@@ -45,9 +48,9 @@ router.post("/logout", userMiddleware, logout);
 router.post("/create-college", userMiddleware, createCollege);
 
 //otp sender+ purpose(eg. register ,login,verifyemail,etc) skip for now
-// router.post('/request-otp',requestOTP);
-// router.post('/verify-otp',verifyOTP);
-// router.post('/resend-otp',resendOTP);
+router.post("/request-otp", otpLimiter, requestOTP);
+router.post("/verify-otp", verifyOTP);
+router.post("/resend-otp", otpLimiter, resendOTP);
 //logout all devices
 // router.post('/logout-all-devices',logoutAllDevices);
 

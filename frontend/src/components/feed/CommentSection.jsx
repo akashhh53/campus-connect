@@ -163,22 +163,65 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
 
     try {
       setPosting(true);
+      let appliedLocalUpdate = false;
 
       if (replyingTo?.id) {
-        await replyToComment(
+        const response = await replyToComment(
           replyingTo.id,
           content,
           replyingTo.replyToUser,
         );
+        const newReply = response?.data;
+
+        if (newReply?._id) {
+          const rootId = newReply.parentCommentId || replyingTo.id;
+
+          setComments((current) =>
+            current.map((comment) =>
+              String(comment._id) === String(rootId)
+                ? {
+                    ...comment,
+                    replies: [
+                      ...(comment.replies || []).filter(
+                        (reply) => String(reply._id) !== String(newReply._id),
+                      ),
+                      newReply,
+                    ],
+                  }
+                : comment,
+            ),
+          );
+          setExpandedReplies((current) => ({
+            ...current,
+            [rootId]: true,
+          }));
+          appliedLocalUpdate = true;
+        } else {
+          await fetchComments(1, false);
+        }
       } else {
-        await addComment(postId, content);
+        const response = await addComment(postId, content);
+        const newComment = response?.data;
+
+        if (newComment?._id) {
+          setComments((current) => [
+            newComment,
+            ...current.filter(
+              (comment) => String(comment._id) !== String(newComment._id),
+            ),
+          ]);
+          appliedLocalUpdate = true;
+        } else {
+          await fetchComments(1, false);
+        }
       }
 
       setContent("");
       setReplyingTo(null);
-
-      // Reset to first page to see new comment
-      await fetchComments(1, false);
+      if (appliedLocalUpdate) {
+        setTotalComments((current) => current + 1);
+        setTotalLoaded((current) => current + 1);
+      }
 
       if (onCommentAdded) {
         onCommentAdded(1);
@@ -291,7 +334,25 @@ const CommentSection = ({ postId, onCommentAdded, targetComment }) => {
       }
 
       await deleteComment(commentId);
-      await fetchComments(1, false); // Reset to first page after delete
+
+      setComments((current) =>
+        current.reduce((nextComments, comment) => {
+          if (String(comment._id) === String(commentId)) {
+            return nextComments;
+          }
+
+          nextComments.push({
+            ...comment,
+            replies: (comment.replies || []).filter(
+              (reply) => String(reply._id) !== String(commentId),
+            ),
+          });
+
+          return nextComments;
+        }, []),
+      );
+      setTotalComments((current) => Math.max(0, current - deletedCount));
+      setTotalLoaded((current) => Math.max(0, current - deletedCount));
 
       if (onCommentAdded) {
         onCommentAdded(-deletedCount);
