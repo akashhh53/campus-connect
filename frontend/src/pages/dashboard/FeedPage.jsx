@@ -27,6 +27,12 @@ const FeedPage = () => {
   const createPostRef = useRef(null);
   const observer = useRef();
   const feedRef = useRef(null);
+  
+  // Video tracking refs
+  const postRefs = useRef({});
+  const [visibleVideoId, setVisibleVideoId] = useState(null);
+  const [globalMuted, setGlobalMuted] = useState(true);
+  const [manuallyPausedVideoId, setManuallyPausedVideoId] = useState(null);
 
   const localData = JSON.parse(localStorage.getItem("userInfo") || "null");
   const user = localData?.user;
@@ -45,6 +51,42 @@ const FeedPage = () => {
   const [showCreatePost, setShowCreatePost] = useState(false);
 
   const userInitial = user?.name?.charAt(0)?.toUpperCase() || "U";
+
+  // Helper function
+  const hasVideoAttachment = useCallback((post) => {
+    if (!post?.attachments?.length) return false;
+    return post.attachments.some(att => 
+      /\.(mp4|webm|mov)(?:\?|$)/i.test(att)
+    );
+  }, []);
+
+  // Video visibility handlers
+  const handleVideoPlay = useCallback((postId) => {
+    setVisibleVideoId(postId);
+    // Clear manual pause state when video starts playing
+    setManuallyPausedVideoId(null);
+  }, []);
+
+  const handleVideoPause = useCallback((postId) => {
+    setVisibleVideoId((prev) => prev === postId ? null : prev);
+  }, []);
+
+  // Handle manual pause from user
+  const handleManualPause = useCallback((postId) => {
+    setManuallyPausedVideoId(postId);
+    setVisibleVideoId(null);
+  }, []);
+
+  // Handle manual play from user
+  const handleManualPlay = useCallback((postId) => {
+    setManuallyPausedVideoId(null);
+    setVisibleVideoId(postId);
+  }, []);
+
+  // Global mute toggle
+  const handleToggleMute = useCallback(() => {
+    setGlobalMuted(prev => !prev);
+  }, []);
 
   const fetchPosts = useCallback(
     async (currentPage = 1, append = false, force = false) => {
@@ -152,6 +194,60 @@ const FeedPage = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showCreatePost]);
 
+  // Video Intersection Observer
+  useEffect(() => {
+    const videoObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const postId = entry.target.dataset.postId;
+          if (!postId) return;
+
+          // Check if this post actually has a video
+          const post = posts.find(p => p._id === postId);
+          if (!post || !hasVideoAttachment(post)) return;
+
+          // If video is visible (70%+ in viewport)
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.7) {
+            // Only set as visible if not manually paused
+            if (manuallyPausedVideoId !== postId) {
+              setVisibleVideoId(postId);
+            }
+          } else if (visibleVideoId === postId) {
+            // If this was the active video but is no longer visible
+            setVisibleVideoId(null);
+          }
+        });
+      },
+      {
+        threshold: [0.7],
+        rootMargin: "0px",
+      }
+    );
+
+    // Observe all post containers that have videos
+    Object.entries(postRefs.current).forEach(([postId, ref]) => {
+      if (ref) {
+        const post = posts.find(p => p._id === postId);
+        if (post && hasVideoAttachment(post)) {
+          videoObserver.observe(ref);
+        }
+      }
+    });
+
+    return () => {
+      videoObserver.disconnect();
+    };
+  }, [posts, hasVideoAttachment, visibleVideoId, manuallyPausedVideoId]);
+
+  // Clean up all video refs on unmount
+  useEffect(() => {
+    return () => {
+      // Reset video states
+      setVisibleVideoId(null);
+      setManuallyPausedVideoId(null);
+    };
+  }, []);
+
   const lastPostRef = useCallback(
     (node) => {
       if (loading || loadingMore) return;
@@ -200,6 +296,9 @@ const FeedPage = () => {
   };
 
   const refreshFeed = () => {
+    setVisibleVideoId(null);
+    setManuallyPausedVideoId(null);
+    setGlobalMuted(true);
     fetchPosts(1, false, true);
   };
 
@@ -369,17 +468,40 @@ const FeedPage = () => {
               </button>
             </div>
           ) : (
-            posts.map((post, index) => (
-              <article
-                className="feed-post-shell"
-                key={post._id}
-                ref={index === posts.length - 1 ? lastPostRef : null}
-              >
-                <div id={`post-${post._id}`}>
-                  <PostCard post={post} onImageClick={handleImageClick} />
-                </div>
-              </article>
-            ))
+            posts.map((post, index) => {
+              const hasVideo = hasVideoAttachment(post);
+              const isVideoVisible = hasVideo && visibleVideoId === post._id;
+              const isManuallyPaused = manuallyPausedVideoId === post._id;
+              
+              return (
+                <article
+                  className="feed-post-shell"
+                  key={post._id}
+                  ref={(el) => {
+                    if (el) postRefs.current[post._id] = el;
+                    if (index === posts.length - 1) {
+                      lastPostRef(el);
+                    }
+                  }}
+                  data-post-id={post._id}
+                >
+                  <div id={`post-${post._id}`}>
+                    <PostCard 
+                      post={post} 
+                      isVideoVisible={isVideoVisible}
+                      isManuallyPaused={isManuallyPaused}
+                      onVideoPlay={() => handleVideoPlay(post._id)}
+                      onVideoPause={() => handleVideoPause(post._id)}
+                      onManualPause={() => handleManualPause(post._id)}
+                      onManualPlay={() => handleManualPlay(post._id)}
+                      onImageClick={handleImageClick}
+                      globalMuted={globalMuted}
+                      onToggleMute={handleToggleMute}
+                    />
+                  </div>
+                </article>
+              );
+            })
           )}
 
           {loadingMore && (

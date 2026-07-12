@@ -12,6 +12,9 @@ import {
   FiMessageCircle,
   FiMoreVertical,
   FiTrash2,
+  FiVolume2,
+  FiVolumeX,
+  FiPlay,
 } from "react-icons/fi";
 import { reactToPost, removeReaction } from "../../services/reactionService";
 import CommentSection from "./CommentSection";
@@ -23,6 +26,14 @@ const PostCard = memo(
     onUnsave,
     forceShowComments = false,
     targetComment,
+    isVideoVisible = false,
+    isManuallyPaused = false,
+    onVideoPlay = () => {},
+    onVideoPause = () => {},
+    onManualPause = () => {},
+    onManualPlay = () => {},
+    globalMuted = true,
+    onToggleMute = () => {},
   }) => {
     const navigate = useNavigate();
     const [liked, setLiked] = useState(!!post.userReaction);
@@ -38,9 +49,19 @@ const PostCard = memo(
     const [showMenu, setShowMenu] = useState(false);
     const [deleting, setDeleting] = useState(false);
     
+    // Video states
+    const [showPlayIcon, setShowPlayIcon] = useState(false);
+    const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [isVideoVisibleLocal, setIsVideoVisibleLocal] = useState(false);
+    
     const pendingLikeRef = useRef(null);
     const imageRef = useRef(null);
     const menuRef = useRef(null);
+    const videoRef = useRef(null);
+    const playIconTimeoutRef = useRef(null);
+    const hasPlayedOnceRef = useRef(false);
+    const isManuallyPausedRef = useRef(false);
 
     const localUser = JSON.parse(localStorage.getItem("userInfo") || "null");
     const isOwner = localUser?.user?._id === post.author?._id;
@@ -61,14 +82,135 @@ const PostCard = memo(
       }
     }, [showMenu]);
 
-    // Cleanup pending like on unmount
+    // Cleanup on unmount
     useEffect(() => {
       return () => {
         if (pendingLikeRef.current) {
           clearTimeout(pendingLikeRef.current);
         }
+        if (playIconTimeoutRef.current) {
+          clearTimeout(playIconTimeoutRef.current);
+        }
+        // Pause video on unmount
+        if (videoRef.current && !videoRef.current.paused) {
+          videoRef.current.pause();
+        }
       };
     }, []);
+
+    // Sync with manual pause state from parent
+    useEffect(() => {
+      isManuallyPausedRef.current = isManuallyPaused;
+    }, [isManuallyPaused]);
+
+    // Video autoplay logic with manual pause respect
+    useEffect(() => {
+      const video = videoRef.current;
+      if (!video) return;
+
+      if (isVideoVisible && !isManuallyPaused) {
+        // Video is visible and not manually paused - play it
+        setIsVideoVisibleLocal(true);
+        video.muted = globalMuted;
+        video.play()
+          .then(() => {
+            setIsPlaying(true);
+            hasPlayedOnceRef.current = true;
+            onVideoPlay();
+          })
+          .catch((error) => {
+            // Autoplay prevented - this is normal for mobile
+            console.log("Autoplay prevented:", error);
+            setIsPlaying(false);
+          });
+      } else {
+        // Video is NOT visible OR manually paused - pause and mute it
+        setIsVideoVisibleLocal(false);
+        if (!video.paused) {
+          video.pause();
+          setIsPlaying(false);
+        }
+        // ALWAYS mute when not visible to stop audio
+        video.muted = true;
+        onVideoPause();
+      }
+    }, [isVideoVisible, isManuallyPaused, globalMuted, onVideoPlay, onVideoPause]);
+
+    // Apply global mute state changes
+    useEffect(() => {
+      const video = videoRef.current;
+      if (!video || !isVideoVisible || isManuallyPaused) return;
+      
+      // Only apply mute state changes when video is playing/visible
+      video.muted = globalMuted;
+    }, [globalMuted, isVideoVisible, isManuallyPaused]);
+
+    // Handle video click (play/pause toggle)
+    const handleVideoClick = useCallback((e) => {
+      e.stopPropagation();
+      const video = videoRef.current;
+      if (!video) return;
+
+      if (video.paused) {
+        // User manually played the video
+        video.muted = globalMuted;
+        video.play()
+          .then(() => {
+            setIsPlaying(true);
+            onManualPlay();
+            onVideoPlay();
+            setShowPlayIcon(false);
+            isManuallyPausedRef.current = false;
+          })
+          .catch((error) => {
+            console.log("Play failed:", error);
+          });
+      } else {
+        // User manually paused the video
+        video.pause();
+        setIsPlaying(false);
+        onManualPause();
+        onVideoPause();
+        isManuallyPausedRef.current = true;
+        // Show play icon with animation
+        setShowPlayIcon(true);
+        if (playIconTimeoutRef.current) {
+          clearTimeout(playIconTimeoutRef.current);
+        }
+        playIconTimeoutRef.current = setTimeout(() => {
+          setShowPlayIcon(false);
+        }, 1000);
+      }
+    }, [globalMuted, onManualPlay, onManualPause, onVideoPlay, onVideoPause]);
+
+    // Toggle mute (global)
+    const handleToggleMute = useCallback((e) => {
+      e.stopPropagation();
+      onToggleMute();
+    }, [onToggleMute]);
+
+    // Handle video load
+    const handleVideoLoaded = useCallback(() => {
+      setIsVideoLoaded(true);
+    }, []);
+
+    // Handle video end - loop
+    const handleVideoEnd = useCallback(() => {
+      const video = videoRef.current;
+      if (video && !isManuallyPausedRef.current) {
+        video.currentTime = 0;
+        video.muted = globalMuted;
+        video.play()
+          .then(() => {
+            setIsPlaying(true);
+            onVideoPlay();
+          })
+          .catch(() => {
+            setIsPlaying(false);
+            onVideoPause();
+          });
+      }
+    }, [globalMuted, onVideoPlay, onVideoPause]);
 
     const handleCommentUpdate = useCallback((changeCount) => {
       setCommentsCount((prev) => Math.max(0, prev + changeCount));
@@ -347,13 +489,63 @@ const PostCard = memo(
           <div className="media-container">
             <div className="media-wrapper">
               {isVideo ? (
-                <video
-                  className="media-image"
-                  controls
-                  playsInline
-                  preload="metadata"
-                  src={currentImage}
-                />
+                <div 
+                  className="video-container"
+                  onClick={handleVideoClick}
+                >
+                  <video
+                    ref={videoRef}
+                    className="media-image"
+                    playsInline
+                    preload="metadata"
+                    muted={globalMuted}
+                    src={currentImage}
+                    onLoadedData={handleVideoLoaded}
+                    onEnded={handleVideoEnd}
+                    loop={false}
+                  />
+                  
+                  {/* Loading skeleton */}
+                  {!isVideoLoaded && (
+                    <div className="video-loading">
+                      <div className="video-spinner" />
+                    </div>
+                  )}
+                  
+                  {/* Fade in video when loaded */}
+                  {isVideoLoaded && (
+                    <div 
+                      className="video-fade-in" 
+                      style={{ 
+                        position: 'absolute', 
+                        top: 0, 
+                        left: 0, 
+                        right: 0, 
+                        bottom: 0,
+                        pointerEvents: 'none',
+                        background: 'transparent'
+                      }} 
+                    />
+                  )}
+                  
+                  {/* Play/Pause overlay icon */}
+                  {showPlayIcon && isVideoLoaded && (
+                    <div className="play-overlay">
+                      <FiPlay className="play-icon" />
+                    </div>
+                  )}
+                  
+                  {/* Mute/Unmute button */}
+                  {isVideoLoaded && (
+                    <button
+                      className="mute-btn"
+                      onClick={handleToggleMute}
+                      aria-label={globalMuted ? "Unmute" : "Mute"}
+                    >
+                      {globalMuted ? <FiVolumeX /> : <FiVolume2 />}
+                    </button>
+                  )}
+                </div>
               ) : (
                 <img
                   ref={imageRef}
@@ -789,6 +981,131 @@ const PostCard = memo(
             user-select: none;
           }
 
+          /* Video Container - Theme aware */
+          .video-container {
+            position: relative;
+            width: 100%;
+            background: var(--cc-surface-soft);
+            border-radius: 18px;
+            overflow: hidden;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+          }
+
+          .video-container video {
+            width: 100%;
+            max-height: 480px;
+            object-fit: contain;
+            background: var(--cc-surface-soft);
+            display: block;
+          }
+
+          /* Video fade in */
+          .video-fade-in {
+            animation: fadeInVideo 0.5s ease-out;
+          }
+
+          @keyframes fadeInVideo {
+            from {
+              opacity: 0;
+            }
+            to {
+              opacity: 1;
+            }
+          }
+
+          /* Video Loading Skeleton */
+          .video-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .video-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--cc-border);
+            border-top: 3px solid var(--cc-primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+
+          /* Play/Pause overlay */
+          .play-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            animation: playPulse 0.4s ease-out;
+          }
+
+          .play-icon {
+            width: 48px;
+            height: 48px;
+            color: white;
+            fill: white;
+            filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+          }
+
+          @keyframes playPulse {
+            0% {
+              transform: translate(-50%, -50%) scale(0.5);
+              opacity: 0;
+            }
+            50% {
+              transform: translate(-50%, -50%) scale(1.2);
+              opacity: 1;
+            }
+            100% {
+              transform: translate(-50%, -50%) scale(1);
+              opacity: 1;
+            }
+          }
+
+          /* Mute button */
+          .mute-btn {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: white;
+            transition: all 0.2s ease;
+            padding: 0;
+            z-index: 5;
+          }
+
+          .mute-btn:hover {
+            background: rgba(0, 0, 0, 0.9);
+            transform: scale(1.1);
+          }
+
+          .mute-btn svg {
+            width: 20px;
+            height: 20px;
+          }
+
           .nav-btn {
             position: absolute;
             top: 50%;
@@ -1124,6 +1441,27 @@ const PostCard = memo(
             .comments-wrapper {
               padding: 0 16px 16px;
             }
+
+            .video-container {
+              min-height: 150px;
+            }
+
+            .mute-btn {
+              width: 34px;
+              height: 34px;
+              bottom: 12px;
+              right: 12px;
+            }
+
+            .mute-btn svg {
+              width: 16px;
+              height: 16px;
+            }
+
+            .play-icon {
+              width: 40px;
+              height: 40px;
+            }
           }
 
           @media (max-width: 480px) {
@@ -1139,6 +1477,27 @@ const PostCard = memo(
             .media-counter {
               font-size: 11px;
               padding: 4px 10px;
+            }
+
+            .video-container {
+              min-height: 120px;
+            }
+
+            .mute-btn {
+              width: 30px;
+              height: 30px;
+              bottom: 8px;
+              right: 8px;
+            }
+
+            .mute-btn svg {
+              width: 14px;
+              height: 14px;
+            }
+
+            .play-icon {
+              width: 32px;
+              height: 32px;
             }
           }
 
