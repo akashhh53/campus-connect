@@ -1,139 +1,105 @@
-const {
-  setIO,
-  setUserOnline,
-  setUserOffline,
-  getOnlineUserIds,
-} = require("../socket");
-
+// ================= IMPORTS =================
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
+const cors = require("cors");
+const cookieParser = require("cookie-parser");
+require("dotenv").config();
 
+// Custom imports
+const { setIO, setUserOnline, setUserOffline, getOnlineUserIds } = require("../socket");
+const main = require("./config/db");
+const redisClient = require("./config/redis");
+const router = require("./routes/userauth");
+const lostFoundRoutes = require("./routes/lostFoundRoutes");
+const feedRoutes = require("./routes/feedRoutes");
+const chatRoutes = require("./routes/chatRoutes");
+const Message = require("./models/chat/message");
+const ChatParticipant = require("./models/chat/chatParticipant");
+const User = require("./models/userIdentity/user");
+
+// ================= APP SETUP =================
 const app = express();
 const server = http.createServer(app);
 
-require("dotenv").config();
+app.set("trust proxy", 1); // it is the server between internet and user device 
+// without this user cannot see the real ip address instead it will see the proxy ip 
 
-const main = require("./config/db");
-
-const cookierParser = require("cookie-parser");
-
-const router = require("./routes/userauth");
-
-const redisClient = require("./config/redis");
-
-const lostFoundRoutes = require("./routes/lostFoundRoutes");
-
-const feedRoutes = require("./routes/feedRoutes");
-
-const chatRoutes = require("./routes/chatRoutes");
-
-const Message = require("./models/chat/message");
-const ChatParticipant =
-require(
-"./models/chat/chatParticipant"
-);
-const User = require("./models/userIdentity/user");
-
-const cors = require("cors");
-
-app.set("trust proxy", 1);
-
-const normalizeOrigin = (origin) => origin?.trim().replace(/\/$/, "");
-
-const configuredFrontendOrigins = [
-  process.env.FRONTEND_URL,
-  process.env.PUBLIC_FRONTEND_URL,
-  process.env.CLIENT_URL,
-  process.env.APP_URL,
-  process.env.FRONTEND_URLS,
-]
-  .filter(Boolean)
-  .flatMap((origin) => origin.split(","))
-  .map(normalizeOrigin)
-  .filter(Boolean);
-
-const allowedOrigins = new Set(
-  [
-    ...configuredFrontendOrigins,
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:3000",
-
-  //capacitor
-    "https://localhost",
-"capacitor://localhost",
-  ]
-    .filter(Boolean)
-    .map(normalizeOrigin)
-    .filter(Boolean),
-);
-
+// ================= CORS CONFIGURATION =================
 const corsOptions = {
-  origin(origin, callback) {
-    const normalizedOrigin = normalizeOrigin(origin);
-    const allowUnconfiguredHttpsOrigin =
-      configuredFrontendOrigins.length === 0 &&
-      /^https:\/\//i.test(normalizedOrigin || "");
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      process.env.FRONTEND_URL,
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:3000",
+      "capacitor://localhost"
+    ].filter(Boolean); // used to filter the undefined or null values in the array 
 
-    if (
-      !origin ||
-      allowedOrigins.has(normalizedOrigin) ||
-      allowUnconfiguredHttpsOrigin
-    ) {
-      return callback(null, true);
+
+    //when someone calls from postman than there is no need of origin
+    // and there should be allowed request direct to api 
+     
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true); // one way of using callback
+      //null means no error and true means yes it is allowd
+    } else {
+      callback(new Error('CORS not allowed'));//second way of using call back
     }
-
-    return callback(null, false);
   },
-
-  credentials: true,
+  credentials: true // means: "Allow cookies and login information to be sent with requests."
 };
-
-// CORS
+//.use is a middleware for (it can use routes , cors , etc)
 app.use(cors(corsOptions));
 
-// SOCKET
-const io = new Server(server, {
-  cors: corsOptions,
-});
+// ================= MIDDLEWARE =================
+app.use(express.json());
+// What it does                    	 Example
+// Reads JSON from request body	    {"email":"user@email.com"}
+// Converts to JavaScript object	  { email: "user@email.com" }
+// Puts it in req.body	             req.body.email → "user@email.com"
 
+
+app.use(cookieParser());
+
+// What it does	                     Example
+// Reads cookies from request	       Cookie: authToken=abc123
+// Converts to JavaScript object 	  { authToken: "abc123" }
+// Puts it in req.cookies	           req.cookies.authToken → "abc123"
+
+
+// ================= ROUTES =================
+app.use("/user", router);
+app.use("/user", lostFoundRoutes);
+app.use("/user", feedRoutes);
+app.use("/chat", chatRoutes);
+
+// ================= SOCKET.IO =================
+const io = new Server(server, { cors: corsOptions });
 setIO(io);
-
-// ================= SOCKET =================
 
 io.on("connection", (socket) => {
   socket.activeRoom = null;
-
-  const userId =
-    socket.handshake.auth?.userId;
+  const userId = socket.handshake.auth?.userId;
 
   if (userId) {
     socket.join(userId);
     if (setUserOnline(userId, socket.id)) {
       socket.broadcast.emit("presence_update", { userId, isOnline: true });
     }
-
-    console.log(
-      `User ${userId} joined`
-    );
+    console.log(`👤 User ${userId} connected`);
   }
 
-  socket.emit(
-    "welcome",
-    "Socket connected successfully"
-  );
+  socket.emit("welcome", "Socket connected successfully");
 
+  // Presence
   socket.on("request_presence", () => {
     socket.emit("presence_snapshot", getOnlineUserIds());
   });
 
-  // WebRTC media stays between the two callers. The server only relays the
-  // short-lived signaling messages required to establish that connection.
+  // WebRTC Call Events
   socket.on("call_user", async ({ targetId, callId, mode }) => {
-    if (!userId || !targetId || !callId || !["audio", "video"].includes(mode)) {
-      return;
-    }
+    if (!userId || !targetId || !callId || !["audio", "video"].includes(mode)) return;
 
     const [caller, target] = await Promise.all([
       User.findById(userId).select("name profilePicture collegeId").lean(),
@@ -153,12 +119,7 @@ io.on("connection", (socket) => {
 
   socket.on("webrtc_offer", ({ targetId, callId, mode, sdp }) => {
     if (!userId || !targetId || !callId || !sdp) return;
-    io.to(String(targetId)).emit("webrtc_offer", {
-      fromId: userId,
-      callId,
-      mode,
-      sdp,
-    });
+    io.to(String(targetId)).emit("webrtc_offer", { fromId: userId, callId, mode, sdp });
   });
 
   socket.on("webrtc_answer", ({ targetId, callId, sdp }) => {
@@ -168,11 +129,7 @@ io.on("connection", (socket) => {
 
   socket.on("webrtc_ice_candidate", ({ targetId, callId, candidate }) => {
     if (!userId || !targetId || !callId || !candidate) return;
-    io.to(String(targetId)).emit("webrtc_ice_candidate", {
-      fromId: userId,
-      callId,
-      candidate,
-    });
+    io.to(String(targetId)).emit("webrtc_ice_candidate", { fromId: userId, callId, candidate });
   });
 
   socket.on("call_declined", ({ targetId, callId }) => {
@@ -185,295 +142,136 @@ io.on("connection", (socket) => {
     io.to(String(targetId)).emit("call_end", { fromId: userId, callId });
   });
 
-  // JOIN ROOM
+  // Room Management
+  socket.on("join_room", (roomId) => {
+    if (socket.activeRoom) socket.leave(socket.activeRoom);
+    socket.activeRoom = String(roomId);
+    socket.join(roomId);
+    console.log(`📢 User ${userId} joined room ${roomId}`);
+  });
 
-  socket.on(
-    "join_room",
+  socket.on("leave_room", (roomId) => {
+    socket.leave(roomId);
+    if (socket.activeRoom === String(roomId)) socket.activeRoom = null;
+    console.log(`👋 User ${userId} left room ${roomId}`);
+  });
 
-    (roomId) => {
-      if (
-        socket.activeRoom
-      ) {
-        socket.leave(
-          socket.activeRoom
-        );
-      }
+  // Typing Indicators
+  socket.on("typing", ({ roomId, user }) => {
+    socket.to(roomId).emit("user_typing", { roomId, name: user });
+  });
 
-      socket.activeRoom =
-        String(roomId);
+  socket.on("stop_typing", (roomId) => {
+    socket.to(roomId).emit("user_stop_typing");
+  });
 
-      socket.join(
-        roomId
-      );
-
-      console.log(
-        `User ${userId} active in room ${roomId}`
-      );
-    }
-  );
-
-  // LEAVE ROOM
-
-  socket.on(
-    "leave_room",
-
-    (roomId) => {
-      socket.leave(
-        roomId
-      );
-
-      if (
-        socket.activeRoom ===
-        String(roomId)
-      ) {
-        socket.activeRoom =
-          null;
-      }
-
-      console.log(
-        `User ${userId} left room ${roomId}`
-      );
-    }
-  );
-
-  // TYPING
-
-  socket.on(
-    "typing",
-
-    ({ roomId, user }) => {
-      socket
-        .to(roomId)
-        .emit(
-          "user_typing",
-         {roomId,
-        name: user,} 
-        );
-    }
-  );
-
-  socket.on(
-    "stop_typing",
-
-    (roomId) => {
-      socket
-        .to(roomId)
-        .emit(
-          "user_stop_typing"
-        );
-    }
-  );
-
-  // DELIVERED
-
-  socket.on(
-    "message_delivered",
-
-    async ({
-      messageId,
-      roomId,
-    }) => {
-      try {
-        await Message.findByIdAndUpdate(
-          messageId,
-          {
-            status:
-              "delivered",
-          }
-        );
-
-        io.to(roomId).emit(
-          "message_status",
-
-          {
-            messageId,
-
-            status:
-              "delivered",
-          }
-        );
-      } catch (err) {
-        console.log(err);
-      }
-    }
-  );
-
-  // SEEN
-
- socket.on(
-  "message_seen",
-
-  async ({
-    roomId,
-    userId,
-  }) => {
+  // Message Status: Delivered
+  socket.on("message_delivered", async ({ messageId, roomId }) => {
     try {
+      await Message.findByIdAndUpdate(messageId, { status: "delivered" });
+      io.to(roomId).emit("message_status", { messageId, status: "delivered" });
+    } catch (err) {
+      console.error("❌ Delivered status error:", err);
+    }
+  });
 
-      const updated =
-        await Message.find({
-          chatRoomId:
-            roomId,
-
-          sender: {
-            $ne:
-              userId,
-          },
-
-          status: {
-            $in: [
-              "sent",
-              "delivered",
-            ],
-          },
-        }).select(
-          "_id"
-        );
+  // Message Status: Seen
+  socket.on("message_seen", async ({ roomId, userId }) => {
+    try {
+      const updated = await Message.find({
+        chatRoomId: roomId,
+        sender: { $ne: userId },
+        status: { $in: ["sent", "delivered"] }
+      }).select("_id");
 
       await Message.updateMany(
-        {
-          _id: {
-            $in:
-              updated.map(
-                (m) =>
-                  m._id
-              ),
-          },
-        },
-
-        {
-          status:
-            "seen",
-        }
+        { _id: { $in: updated.map(m => m._id) } },
+        { status: "seen" }
       );
 
-      // RESET UNREAD COUNT
       await ChatParticipant.updateOne(
-        {
-          chatRoomId:
-            roomId,
-
-          userId:
-            userId,
-        },
-
-        {
-          unreadCount:
-            0,
-        }
+        { chatRoomId: roomId, userId },
+        { unreadCount: 0 }
       );
 
-      updated.forEach(
-        (
-          msg
-        ) => {
-          io.to(
-            roomId
-          ).emit(
-            "message_status",
+      updated.forEach(msg => {
+        io.to(roomId).emit("message_status", { messageId: msg._id, status: "seen" });
+      });
 
-            {
-              messageId:
-                msg._id,
-
-              status:
-                "seen",
-            }
-          );
-        }
-      );
-
-      // REFRESH BADGES
-      io.to(
-        userId
-      ).emit(
-        "chat_updated"
-      );
-
+      io.to(userId).emit("chat_updated");
     } catch (err) {
-      console.log(
-        err
-      );
+      console.error("❌ Seen status error:", err);
     }
-  }
-);
+  });
 
-  socket.on(
-    "disconnect",
-
-    () => {
-      if (setUserOffline(userId, socket.id)) {
-        socket.broadcast.emit("presence_update", { userId, isOnline: false });
-      }
-      socket.activeRoom =
-        null;
-
-      console.log(
-        "Disconnected:",
-        socket.id
-      );
+  // Disconnect
+  socket.on("disconnect", () => {
+    if (setUserOffline(userId, socket.id)) {
+      socket.broadcast.emit("presence_update", { userId, isOnline: false });
     }
-  );
+    socket.activeRoom = null;
+    console.log(`🔌 User ${userId || 'Unknown'} disconnected`);
+  });
 });
 
-// ================= END SOCKET =================
+// ================= ERROR HANDLING =================
 
-// Middleware
-
-app.use(express.json());
-
-app.use(cookierParser());
-
-// Routes
-
-app.use("/user", router);
-
-app.use("/user", lostFoundRoutes);
-
-app.use("/user", feedRoutes);
-
-app.use("/chat", chatRoutes);
-
+// Multer Error Handler
 app.use((error, req, res, next) => {
   if (error?.name === "MulterError") {
     return res.status(400).json({ success: false, message: error.message });
   }
-
   if (error) {
     return res.status(400).json({
       success: false,
       message: error.message || "Unable to upload this file.",
     });
   }
-
   return next();
 });
 
-// Start
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error("🔥 Global Error:", err.message);
+  console.error("Stack:", err.stack);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal Server Error"
+  });
+});
 
+// ================= START SERVER =================
 const InitializeConnection = async () => {
   try {
+    // Connect to MongoDB (REQUIRED)
     await main();
+    console.log("✅ MongoDB connected successfully");
 
+    // Connect to Redis (OPTIONAL)
     try {
-      if (!redisClient.isOpen) {
-        await redisClient.connect();
-      }
-
-      console.log("Connected to MongoDB and Redis");
+      await redisClient.connect();
+      console.log("✅ Redis connected successfully");
     } catch (redisError) {
-      console.warn("Connected to MongoDB. Redis cache is unavailable:", redisError.message);
+      console.warn("⚠️ Redis unavailable. Continuing without cache:", redisError.message);
     }
 
-    server.listen(
-      process.env.PORT,
+    // Start Server
+    const PORT = process.env.PORT || 4000;
+    server.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📱 Frontend URL: ${process.env.FRONTEND_URL}`);
+    });
 
-      () => {
-        console.log(`Server is running on port ${process.env.PORT}`);
-      },
-    );
   } catch (err) {
-    console.log(err);
+    console.error("❌ Failed to start server:", err.message);
+    process.exit(1);
   }
 };
+
+// Handle unhandled promise rejections
+process.on("unhandledRejection", (err) => {
+  console.error("💥 Unhandled Rejection:", err);
+  server.close(() => process.exit(1));
+});
 
 InitializeConnection();
