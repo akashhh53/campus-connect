@@ -1,7 +1,0 @@
-$kind: http-request
-name: get all lost found items
-url: localhost:3000/user/lost-found/items?type=lost
-method: GET
-queryParams:
-  type: lost
-order: 16000

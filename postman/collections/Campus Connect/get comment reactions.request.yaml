@@ -1,4 +1,0 @@
-$kind: http-request
-url: http://localhost:3000/user/comments/69dbcfb4bdc2bd0cd4771803/reactions
-method: GET
-order: 4497284650204601

@@ -1,4 +1,0 @@
-$kind: http-request
-url: http://localhost:3000/user/mutual
-method: GET
-order: 4503598940537450

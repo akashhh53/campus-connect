@@ -1,4 +1,0 @@
-$kind: http-request
-url: http://localhost:3000/user/comments/69dbcfb4bdc2bd0cd4771803/like
-method: DELETE
-order: 4465484409043702

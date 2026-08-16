@@ -1,7 +1,0 @@
-$kind: http-request
-url: http://localhost:3000/user/posts/69dbc6c76de5a17bfd7f75d4/reactions
-method: POST
-body:
-  type: json
-  content: "{\r\n  \"type\": \"like\"\r\n}"
-order: 4488851427126290

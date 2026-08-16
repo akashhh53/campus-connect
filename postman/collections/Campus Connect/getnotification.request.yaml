@@ -1,4 +1,0 @@
-$kind: http-request
-url: http://localhost:3000/user/notifications
-method: GET
-order: 4500056160202318

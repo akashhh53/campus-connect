@@ -1,4 +1,0 @@
-$kind: http-request
-url: http://localhost:3000/user/comments/69dbd0e2e8a34e1d96e4f924
-method: DELETE
-order: 4379633837671112

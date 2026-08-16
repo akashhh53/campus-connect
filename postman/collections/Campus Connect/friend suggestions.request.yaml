@@ -1,5 +1,0 @@
-$kind: http-request
-name: friend suggestions
-url: http://localhost:3000/user/suggestions
-method: GET
-order: 4503599612079502

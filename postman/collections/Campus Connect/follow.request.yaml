@@ -1,7 +1,0 @@
-$kind: http-request
-url: http://localhost:3000/user/follow/69cd18da041d0b781a61dc01
-method: POST
-body:
-  type: json
-  content: ""
-order: 4503400258361543

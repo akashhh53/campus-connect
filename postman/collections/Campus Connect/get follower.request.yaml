@@ -1,4 +1,0 @@
-$kind: http-request
-url: http://localhost:3000/user/users/69be837680f7f16921bb68b7/followers
-method: GET
-order: 4503566283809362

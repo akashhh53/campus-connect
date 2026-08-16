@@ -1,6 +1,0 @@
-$kind: http-request
-url: http://localhost:3000/user/search/users?q=akansha
-method: GET
-queryParams:
-  q: akansha
-order: 4503599619461203
