@@ -3,9 +3,6 @@ import axios from "axios";
 const resolveApiBaseUrl = () => {
   const configuredBaseUrl =
     import.meta.env.VITE_API_BASE_URL ||
-    import.meta.env.VITE_API_URL ||
-    import.meta.env.VITE_BACKEND_URL ||
-    import.meta.env.VITE_SERVER_URL ||
     "";
 
   if (configuredBaseUrl) {
